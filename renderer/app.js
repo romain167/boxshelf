@@ -1025,7 +1025,7 @@ function infoRows(g){
   if(i.players)rows.push(["Players",i.players+(i.coop==="true"?" (co-op)":"")]);
   if(i.esrb)rows.push(["Rating",i.esrb.replace(/ - .*$/,"")]);
   if(i.rating)rows.push(["Community score",i.rating+" / 5"]);
-  rows.push(["Region",g.region||"Unknown"],["File",(g.ext||"").toUpperCase()+" · "+fmtSize(g.sizeBytes)+(g.discs&&g.discs.length>1?" · "+g.discs.length+" discs":"")],["Emulator",s.emulatorName]);
+  rows.push(["Region",g.region||"Unknown"],["File",(g.ext||"").toUpperCase()+" · "+fmtSize(g.sizeBytes)+(g.discs&&g.discs.length>1?" · "+g.discs.length+" discs":"")],["Emulator",nativeName(g)||s.emulatorName]);
   return rows;
 }
 function fmtRelease(r,y){if(r){const d=new Date(r);if(!isNaN(d))return d.toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"})}return y||""}
@@ -1090,7 +1090,7 @@ function fillDetails(){
   else if(g.kind==="steam")cmd=g.source&&g.source!=="steam"?(PC_EXT[g.source]||g.title):`steam://rungameid/${g.appid}`;
   else if(g.kind==="app")cmd=quote(g.path);
   $("dCmd").textContent=cmd;$("dCmd").hidden=!cmd;
-  const how=$("dHow");if(how){how.textContent=g.kind==="rom"?`Plays in ${s.emulatorName}${s.bootOnLaunch&&!s.useIpl&&((themes[s.id]||{}).boot||s.insertAnim===false)?" after the boot "+((themes[s.id]||{}).boot?"video":"intro"):""}. Close the emulator to come back here.`:"";how.hidden=g.kind!=="rom"}
+  const how=$("dHow");if(how){how.textContent=g.kind==="rom"?`Plays in ${nativeName(g)||s.emulatorName}${s.bootOnLaunch&&!s.useIpl&&((themes[s.id]||{}).boot||s.insertAnim===false)?" after the boot "+((themes[s.id]||{}).boot?"video":"intro"):""}. Close the emulator to come back here.`:"";how.hidden=g.kind!=="rom"}
   raDetails(g);
   $("dPlay").textContent=g.kind==="rom"||g.kind==="steam"?"Play":"Open";
   $("dInspect").hidden=g.kind!=="rom";$("dManual").hidden=g.kind!=="rom";$("dManual").querySelector("span").textContent=hasManual(g)?"Read manual":"Read booklet"; /* (beta.7: an icon button: only its label changes) */
@@ -2103,6 +2103,8 @@ function runSlide(s,g,done,hideAfter){
   clearTimeout(insertT);insertT=setTimeout(()=>{if(hideAfter)hideInsert();if(done)done()},reduced()?300:2200);
   insertSeatAt=performance.now()+(reduced()||ANDROID?250:500); // the emulator starts right away under the slide; Boxshelf keeps the slide up a fixed ~4 s so the line fills
 }
+// (fork) the native port a Switch game starts in by default ("" for the shelf's emulator)
+const nativeName=g=>({peanuts:"Peanuts Native",banana:"Banana Native"})[g&&g.nativeEmu]||"";
 function runInsert(s,g,done,hideAfter){
   if(!INSERT_3D){runSlide(s,g,done,hideAfter);return}
   $("insert").classList.remove("slide");
@@ -2125,7 +2127,7 @@ function runInsert(s,g,done,hideAfter){
   const slot=m.drive==="slot"&&!drive&&!useModel;el.classList.toggle("slotload",slot);
   // the other consoles' devices (front slot, tray, handheld hatch): original generic shapes tinted from the shelf
   const deck=!drive&&!useModel?DECK[m.drive]||null:null;Object.values(DECK).forEach(c=>el.classList.toggle(c,c===deck));
-  $("insEmu").textContent=`Starting ${({peanuts:"Peanuts Native",banana:"Banana Native"})[g.nativeEmu]||s.emulatorName}`;$("insTitle").textContent=g.title;
+  $("insEmu").textContent=`Starting ${nativeName(g)||s.emulatorName}`;$("insTitle").textContent=g.title;
   el.classList.add("on");el.setAttribute("aria-hidden","false");
   if(top){
     // tint the cube from the shelf's colours and measure where the well lands on screen so the disc flies exactly into it
@@ -5058,7 +5060,7 @@ function dvCopy(g){const R=dv.crow,a=g.art||{},s=shelfFor(g)||{},man=Array.isArr
   const fn=String(g.file||"").split(/[\\/]/).pop();set("file",fn);
   set("size",[fmtSize(g.sizeBytes),g.discs&&g.discs.length>1?g.discs.length+" discs":""].filter(Boolean).join(" · "));
   const rev=(fn.match(/\((Rev[ ._-]?[\w.]+|v\d[\w.]*)\)/i)||[])[1]||"";set("ver",[g.region,rev.replace(/^rev[ ._-]?/i,"Rev ")].filter(Boolean).join(" · "));
-  const own=gameEmu(g),ge=$("dGameEmu");set("emu",own?emuLabel(own):`${s.emulatorName||"Emulator"}, the shelf's`);btn("emu",!!ge&&!ge.hidden);
+  const own=gameEmu(g),ge=$("dGameEmu");set("emu",own?emuLabel(own):nativeName(g)||`${s.emulatorName||"Emulator"}, the shelf's`);btn("emu",!!ge&&!ge.hidden);
   const cm=$("dChooseManual");set("man",man.length?`${man.length} pages`:g.manualMiss?"None found online":"Not found yet",man.length>0);btn("man",man.length>0||(!!cm&&!cm.hidden),man.length?"Open":"Find");
   const parts=[a.front&&"front",a.back&&"back",a.spine&&"spine",a.disc&&lcWord(s.id?mediaWord(s.id):"Disc")].filter(Boolean),w=parts.length>1?parts.slice(0,-1).join(", ")+" and "+parts[parts.length-1]:parts[0]||"";
   set("art",w?w[0].toUpperCase()+w.slice(1):"No scan yet",parts.length===4);const ba=$("dBoxArt");btn("art",!!ba&&!ba.hidden);
