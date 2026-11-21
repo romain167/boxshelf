@@ -133,8 +133,11 @@
       for (const g of list) if (g !== f && owned.includes(g.ext) && (f.ext !== 'm3u' || g.name.toLowerCase().startsWith(stem.replace(/\s*\(dis[ck] \d+\)/i, '').slice(0, 12)))) hidden.add(g); }
     const games = new Map();
     for (const f of files) {
-      if (hidden.has(f) || (!f.isDir && (!s.extensions.includes(f.ext) || T.skipFile(f.name)))) continue;
-      const info = T.cleanTitle(f.isDir ? f.name + '.dir' : f.name, { updateWords: s.id === 'sw' }); if (info.extra) continue; // (beta.10: the bare word rule is the Switch's only)
+      const nup = f.ext === 'nup'; // (fork) a .nup holds the base and its updates in one file: never skipped as "an update"
+      if (hidden.has(f) || (!f.isDir && (!s.extensions.includes(f.ext) || (!nup && T.skipFile(f.name))))) continue;
+      const info = T.cleanTitle(f.isDir ? f.name + '.dir' : f.name, { updateWords: s.id === 'sw' && !nup });
+      if (nup) { info.extra = false; info.title = info.title.replace(/\s*\+\s*update\b.*$/i, '').trim() || info.title; }
+      if (info.extra) continue; // (beta.10: the bare word rule is the Switch's only)
       const key = info.title.toLowerCase() + '|' + (info.region || ''), prev = games.get(key);
       if (prev) { prev.discs.push(f.path); if ((info.disc || 1) >= (prev.disc || 1)) continue; }
       games.set(key, { kind: 'rom', id: s.id + ':' + f.path, title: info.title, region: info.region, disc: info.disc, file: f.path, uri: f.uri, ext: f.ext,
