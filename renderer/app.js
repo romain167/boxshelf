@@ -2179,9 +2179,9 @@ function runUnbox3D(s,g,done){
   T(700,()=>{isp.state=0;ispAdvance()});                                  // the lid / flap opens
   T(1400,()=>{ispAdvance();Inspect3D.launch(true);rumble(.3,.2,70)});     // the media comes up off its hub / out of its slot
   T(2050,()=>{if(isp.state===2&&!el.classList.contains("cart"))play_("whir")});
-  T(3400,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the light, the curtain opens on the game
-  T(4650,()=>{unboxDone=null;if(done)done()});
-  insertSeatAt=performance.now()+(r?250:4600/spd); // the emulator only starts once the screen has gone over to the game
+  T(4500,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the light, the curtain opens on the game
+  T(5750,()=>{unboxDone=null;if(done)done()});
+  insertSeatAt=performance.now()+(r?250:5700/spd); // the emulator only starts once the screen has gone over to the game
   return true;
 }
 // (fork) a button during the opening: straight to the game (a quick fade to black, then it starts)

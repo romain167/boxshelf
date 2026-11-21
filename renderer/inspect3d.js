@@ -879,18 +879,18 @@ let spineMat = null, standInSpine = null;
         // settles back on a spring to lie tipped like in a drive; the motor spins it up with a little unevenness, and it
         // wobbles on its hub while slow, steadier as it gets up to speed (as a real disc does). It drifts and bobs a little.
         const flipK = reduce ? 1 : Math.min(1, tt / 1.15), flip = (1 - Math.cos(Math.PI * flipK)) / 2 * Math.PI * 2;
-        const tgt = tt < .85 ? -.15 : -.6; st.tqv = (st.tqv || 0) + ((tgt - (st.tq || 0)) * 34 - (st.tqv || 0) * 7.5) * dt; st.tq = (st.tq || 0) + st.tqv * dt;
-        const motor = tt < .6 ? 0 : 17 + Math.sin(tt * 3.1) * .8 + Math.sin(tt * 7.7) * .35;
+        const tgt = tt < .85 ? -.12 : -.3; // (only tipped a little: the game on its label stays easy to see) st.tqv = (st.tqv || 0) + ((tgt - (st.tq || 0)) * 34 - (st.tqv || 0) * 7.5) * dt; st.tq = (st.tq || 0) + st.tqv * dt;
+        const motor = tt < .6 ? 0 : 4.2 + Math.sin(tt * 3.1) * .35 + Math.sin(tt * 7.7) * .15; // (a slow turn, not a blur: you can read it)
         st.lv = sm(st.lv || 0, reduce ? 0 : motor, 1 - Math.exp(-dt * (tt < 1.4 ? .8 : 1.3))); st.ls = (st.ls || 0) + dt * st.lv;
-        const vk = Math.min(1, st.lv / 17), amp = .075 * (1 - vk) + .012, ph = st.ls * .11 + tt * 2.3;
+        const vk = Math.min(1, st.lv / 4.2), amp = .05 * (1 - vk) + .01, ph = st.ls * .11 + tt * 2.3;
         media.rotation.z += st.ls;
         media.rotation.y += flip + Math.cos(ph) * amp * ew;
         media.rotation.x += st.tq + Math.sin(ph) * amp * ew;
         media.position.y += .035 * ew + Math.sin(tt * 1.3) * .012 * ew; media.position.x += Math.sin(tt * .85 + .4) * .01 * ew;
-        const bm = media.userData.blurMat; if (bm) bm.opacity = Math.max(0, Math.min(.9, (st.lv - 5) / 9));
+        const bm = media.userData.blurMat; if (bm) bm.opacity = 0; // (no smear at this speed)
       } else if (!reduce) {
-        const turn = easeIO(Math.min(1, tt / 1.7)) * Math.PI * 2, sway = Math.max(0, Math.min(1, (tt - 1.2) / .8));
-        media.rotation.y += turn + Math.sin(tt * 1.15) * .22 * sway; media.rotation.x += -.12 * ew + Math.sin(tt * 1.4 + 1) * .07 * sway;
+        const turn = easeIO(Math.min(1, tt / 1.3)) * Math.PI * 2, sway = Math.max(0, Math.min(1, (tt - 1.1) / .8));
+        media.rotation.y += turn + Math.sin(tt * 1.15) * .12 * sway; media.rotation.x += -.12 * ew + Math.sin(tt * 1.4 + 1) * .07 * sway;
         media.position.y += Math.sin(tt * 1.7) * .03 * sway;
       }
       const lk = 1 + (cur.kind === 'cart' ? (media.userData.hand > 1 ? .5 : .12) : .5) * o; media.scale.multiplyScalar(lk); // (a small card is held up bigger already; a big cartridge barely)
