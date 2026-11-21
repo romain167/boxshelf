@@ -19,3 +19,6 @@ Box art, manuals and game information are downloaded at the user's request from 
 thumbnails, the LaunchBox Games Database, GameTDB, GamesDatabase.org, the Internet Archive, Steam and RetroAchievements)
 and remain the property of their owners. Boxshelf doesn't include or distribute any games, BIOS files or keys, and the
 console names and logos it shows belong to their owners.
+
+## Nintendo Switch (OLED model) 3D model (renderer/models/switch.glb)
+This work is based on "Nintendo Switch (OLED model)" (https://sketchfab.com/3d-models/nintendo-switch-oled-model-9b8721e10a4f4a689fc4f72cdcee4b01) by rtql8d (https://sketchfab.com/rtql8d), licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Changed: optimized (dedup, prune, quantize), plastics made opaque, the screen re-mapped to show the game.

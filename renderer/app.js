@@ -2157,21 +2157,29 @@ function unboxFx(on,col){const cv=$("ispFx");cancelAnimationFrame(unboxFxRaf);un
 function runUnbox3D(s,g,done){
   if(!(window.Inspect3D&&Inspect3D.available())||curGame()!==g||!slotPose(slots[sel])||(mode!=="browse"&&mode!=="details"))return false;
   openInspect();if(mode!=="inspect"||!Inspect3D.isActive()){closeInspect();return false}
+  if(Inspect3D.preloadConsole)Inspect3D.preloadConsole(s.id); // (in time: it is only needed once the card is out, 1.5 s on)
   mode="launch";const el=$("inspect");el.classList.remove("dive");el.classList.add("unboxing");
   const L=$("ispLaunch");L.querySelector(".l-emu").textContent=`Starting ${nativeName(g)||s.emulatorName||""}`.trim();L.querySelector(".l-title").textContent=g.title;
   const bar=L.querySelector(".isp-lbar i");bar.style.animation="none";void bar.offsetWidth;bar.style.animation="";
   coverAccent(g,c=>{if(c&&el.classList.contains("unboxing"))el.style.setProperty("--accent",c);unboxFx(el.classList.contains("unboxing"),c||(STYLE[s.id]||{}).glow)});
   const r=reduced(),T=(ms,f)=>unboxT.push(setTimeout(f,r?Math.min(ms,200):ms));unboxT.forEach(clearTimeout);unboxT=[];
   lastGoAt=performance.now();play_("go");
+  // (fork) a console with its own 3D model (models/<id>.glb, so far the Switch): the card goes into it and you dive into its
+  // screen. Decided once the card is out (the model loads in the meantime); the rest of the timeline follows from there.
   T(720,()=>{isp.state=0;ispAdvance()});                                  // the lid / flap opens
-  T(1480,()=>{ispAdvance();Inspect3D.launch(true);rumble(.3,.2,70)});     // out comes the media, the case slides away
+  T(1480,()=>{
+    const con=!!(Inspect3D.consoleReady&&Inspect3D.consoleReady(s.id))&&!r,X=con?1650:0,D=con?350:0;
+    ispAdvance();Inspect3D.launch(true,con);el.classList.toggle("con",con);rumble(.3,.2,70);             // out comes the media, the case slides away
+    if(con){T(1650,()=>{play_("seat");rumble(.55,.4,90)});T(2050,()=>{play_("boot")})} // the card clicks in; the console comes on
+    T(1520+X,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");el.classList.toggle("dive-con",con);const cv=$("ispFx");cv&&cv._boost&&cv._boost();if(!con)play_("open");rumble(.45,.3,120)}); // into the game
+    T(1870+X+D,()=>{if(done)done()});
+    insertSeatAt=performance.now()+(r?250:1820+X+D);                      // the emulator only starts once the screen has washed over
+  });
   T(2050,()=>{if(isp.state===2&&!el.classList.contains("cart"))play_("whir")});
-  T(3000,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the game
-  T(3350,()=>{if(done)done()});
-  insertSeatAt=performance.now()+(r?250:3300); // the emulator only starts once the screen has washed over
+  insertSeatAt=performance.now()+(r?250:3300);
   return true;
 }
-function unboxEnd(){unboxT.forEach(clearTimeout);unboxT=[];unboxFx(false);const el=$("inspect");if(!el.classList.contains("unboxing"))return;el.classList.remove("unboxing","dive");
+function unboxEnd(){unboxT.forEach(clearTimeout);unboxT=[];unboxFx(false);const el=$("inspect");if(!el.classList.contains("unboxing"))return;el.classList.remove("unboxing","dive","dive-con","con");
   if(window.Inspect3D&&Inspect3D.launch)Inspect3D.launch(false);const m0=mode;mode="inspect";closeInspect();mode=m0==="inspect"?"browse":m0} // the case closes and flies back into its slot
 function runInsert(s,g,done,hideAfter){
   if(!INSERT_3D){if(s.unbox3d===false){runSlide(s,g,done,hideAfter);return}if(!runUnbox3D(s,g,done))runUnbox(s,g,done,hideAfter);return}
