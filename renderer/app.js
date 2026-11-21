@@ -2165,10 +2165,10 @@ function runUnbox3D(s,g,done){
   lastGoAt=performance.now();play_("go");
   T(720,()=>{isp.state=0;ispAdvance()});                                  // the lid / flap opens
   T(1480,()=>{ispAdvance();Inspect3D.launch(true);rumble(.3,.2,70)});     // out comes the media, the case slides away
-  T(1700,()=>{if(isp.state===2&&!el.classList.contains("cart"))play_("whir")});
-  T(2700,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the game
-  T(3050,()=>{if(done)done()});
-  insertSeatAt=performance.now()+(r?250:3000); // the emulator only starts once the screen has washed over
+  T(2050,()=>{if(isp.state===2&&!el.classList.contains("cart"))play_("whir")});
+  T(3000,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the game
+  T(3350,()=>{if(done)done()});
+  insertSeatAt=performance.now()+(r?250:3300); // the emulator only starts once the screen has washed over
   return true;
 }
 function unboxEnd(){unboxT.forEach(clearTimeout);unboxT=[];unboxFx(false);const el=$("inspect");if(!el.classList.contains("unboxing"))return;el.classList.remove("unboxing","dive");

@@ -519,6 +519,33 @@ let spineMat = null, standInSpine = null;
     if (o.title) arc(String(o.title).toUpperCase().slice(0, 48), m * .9, Math.round(S * .024), 600, false, .8);
     x.restore(); return c;
   }
+  // (fork) a card / cartridge face drawn from the cover, the way that console's carts look: a Switch card's black top with the
+  // art below; a DS / 3DS card's band with the console's name over the art and grip lines under it; a big cartridge (N64,
+  // SNES, NES, Game Boy…) in its grey plastic with grooves along the top, the art on a label set into it and the name moulded below
+  function cartFace(im, sys, ratio, shellHex) {
+    const H = 1024, W = Math.round(H * ratio), c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
+    const shell = '#' + shellHex.toString(16).padStart(6, '0');
+    const art = (X, Y, w, h) => { const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height, k = Math.max(w / iw, h / ih); x.save(); x.beginPath(); x.rect(X, Y, w, h); x.clip(); x.drawImage(im, X + w / 2 - iw * k / 2, Y + h * .42 - ih * k * .42, iw * k, ih * k); x.restore(); };
+    const txt = (t, X, Y, size, col, w = 800) => { x.font = `${w} ${size}px system-ui,Segoe UI,Arial,sans-serif`; x.fillStyle = col; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(t, X, Y); };
+    x.fillStyle = shell; x.fillRect(0, 0, W, H);
+    if (sys === 'sw' || sys === 'sw2') {
+      art(0, H * .1, W, H * .9); x.fillStyle = 'rgba(0,0,0,.85)'; x.fillRect(0, 0, W, H * .1);
+      const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, 'rgba(255,255,255,.16)'); g.addColorStop(.4, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
+    } else if (sys === 'n3ds' || sys === 'nds') {
+      const m = W * .06; art(m, H * .2, W - 2 * m, H * .66);
+      x.fillStyle = sys === 'n3ds' ? '#ffffff' : '#2d2e33'; x.fillRect(m, H * .07, W - 2 * m, H * .13);
+      txt(sys === 'n3ds' ? 'NINTENDO 3DS' : 'NINTENDO DS', W / 2, H * .135, Math.round(H * .06), sys === 'n3ds' ? '#d40f2a' : '#ffffff');
+      x.strokeStyle = 'rgba(0,0,0,.22)'; x.lineWidth = H * .008; for (let i = 0; i < 5; i++) { const y = H * (.9 + i * .018); x.beginPath(); x.moveTo(W * .3, y); x.lineTo(W * .7, y); x.stroke(); }
+    } else {
+      x.strokeStyle = 'rgba(0,0,0,.18)'; x.lineWidth = W * .006; for (let i = 0; i < 14; i++) { const X = W * (.18 + i * .046); x.beginPath(); x.moveTo(X, H * .02); x.lineTo(X, H * .09); x.stroke(); }
+      const lx = W * .09, ly = H * .12, lw = W * .82, lh = H * .62;
+      x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(lx - W * .012, ly - H * .012, lw + W * .024, lh + H * .024); art(lx, ly, lw, lh);
+      const word = { n64: 'NINTENDO 64', snes: 'SUPER NINTENDO', nes: 'NINTENDO', gb: 'GAME BOY', gbc: 'GAME BOY COLOR', gba: 'GAME BOY ADVANCE' }[sys] || '';
+      if (word) { txt(word, W / 2 + 2, H * .835 + 2, Math.round(H * .065), 'rgba(255,255,255,.25)', 900); txt(word, W / 2, H * .835, Math.round(H * .065), 'rgba(0,0,0,.35)', 900); }
+      x.strokeStyle = 'rgba(0,0,0,.15)'; x.lineWidth = H * .006; for (let i = 0; i < 4; i++) { const y = H * (.91 + i * .02); x.beginPath(); x.moveTo(W * .1, y); x.lineTo(W * .9, y); x.stroke(); }
+    }
+    return c;
+  }
   // a copy smeared round the centre, as the eye sees a disc spinning fast
   function spinBlur(src) {
     const S = 512, m = S / 2, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), N = 24;
@@ -649,7 +676,11 @@ let spineMat = null, standInSpine = null;
       // (beta.14) at its real size (a Switch card 21 x 31 mm, a DS card 33 x 35, an N64 cartridge lying landscape 116 x 75)
       const cw = md.cw, ch = md.ch, cd = md.ct;
       const shell = new THREE.MeshPhysicalMaterial({ color: CART_SHELL[o.sys] || 0x24252b, roughness: .5, clearcoat: .25 }); // (fork) each console's own card / cartridge plastic
-      const cart = new THREE.Mesh(new RB(cw, ch, cd, 3, Math.min(.008, cd * .3, cw * .08)), [shell, shell, shell, shell, new THREE.MeshPhysicalMaterial({ map: labelMap, roughness: .38, clearcoat: .7, clearcoatRoughness: .12 }), shell]);
+      // (fork) the face: a real scan (o.disc) as it is; otherwise drawn from the cover in that console's style (cartFace)
+      const faceMat = new THREE.MeshPhysicalMaterial({ map: labelMap, roughness: .38, clearcoat: .7, clearcoatRoughness: .12 });
+      if (!o.disc && labelMap) { const mySeq = mediaSeq; labelMap.userData.p.then(ok => { if (!ok || mySeq !== mediaSeq || !renderer) return;
+        try { const t = new THREE.CanvasTexture(cartFace(labelMap.image, o.sys, cw / ch, CART_SHELL[o.sys] || 0x24252b)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; faceMat.map = t; faceMat.needsUpdate = true; } catch (e) { console.warn('cart face', e); } }); }
+      const cart = new THREE.Mesh(new RB(cw, ch, cd, 3, Math.min(.008, cd * .3, cw * .08)), [shell, shell, shell, shell, faceMat, shell]);
       media = new THREE.Group(); media.add(cart);
       // (beta.14, #32) the gold contacts sit on the back only (the label side has none), as on a real DS / 3DS / Switch card
       const pins = new THREE.Mesh(new THREE.BoxGeometry(cw * .7, ch * .12, .0012), new THREE.MeshStandardMaterial({ color: 0xc9a24a, metalness: .8, roughness: .35 })); pins.position.set(0, -ch / 2 + ch * .08, -cd / 2 - .0006); media.add(pins);
@@ -840,18 +871,25 @@ let spineMat = null, standInSpine = null;
     if (st.launch && o > .01) {
       const tt = (now - (st.l0 || now)) / 1000, w = Math.min(1, tt / .9), ew = easeIO(w);
       if (cur.kind !== 'cart') {
-        st.lv = sm(st.lv || 0, reduce ? 0 : 17, 1 - Math.exp(-dt * 1.15)); st.ls = (st.ls || 0) + dt * st.lv;
+        // (fork, less mechanical) taken off its hub it turns over once in your hand (its rainbow side catches the light), then
+        // settles back on a spring to lie tipped like in a drive; the motor spins it up with a little unevenness, and it
+        // wobbles on its hub while slow, steadier as it gets up to speed (as a real disc does). It drifts and bobs a little.
+        const flipK = reduce ? 1 : Math.min(1, tt / 1.15), flip = (1 - Math.cos(Math.PI * flipK)) / 2 * Math.PI * 2;
+        const tgt = tt < .85 ? -.15 : -.6; st.tqv = (st.tqv || 0) + ((tgt - (st.tq || 0)) * 34 - (st.tqv || 0) * 7.5) * dt; st.tq = (st.tq || 0) + st.tqv * dt;
+        const motor = tt < .6 ? 0 : 17 + Math.sin(tt * 3.1) * .8 + Math.sin(tt * 7.7) * .35;
+        st.lv = sm(st.lv || 0, reduce ? 0 : motor, 1 - Math.exp(-dt * (tt < 1.4 ? .8 : 1.3))); st.ls = (st.ls || 0) + dt * st.lv;
+        const vk = Math.min(1, st.lv / 17), amp = .075 * (1 - vk) + .012, ph = st.ls * .11 + tt * 2.3;
         media.rotation.z += st.ls;
-        const vk = Math.min(1, st.lv / 17);
-        media.rotation.x += -.62 * ew + Math.sin(tt * 9.1) * .012 * vk; media.rotation.y += Math.sin(tt * 6.3 + .7) * .016 * vk;
-        media.position.y += .035 * ew;
+        media.rotation.y += flip + Math.cos(ph) * amp * ew;
+        media.rotation.x += st.tq + Math.sin(ph) * amp * ew;
+        media.position.y += .035 * ew + Math.sin(tt * 1.3) * .012 * ew; media.position.x += Math.sin(tt * .85 + .4) * .01 * ew;
         const bm = media.userData.blurMat; if (bm) bm.opacity = Math.max(0, Math.min(.9, (st.lv - 5) / 9));
       } else if (!reduce) {
         const turn = easeIO(Math.min(1, tt / 1.7)) * Math.PI * 2, sway = Math.max(0, Math.min(1, (tt - 1.2) / .8));
         media.rotation.y += turn + Math.sin(tt * 1.15) * .22 * sway; media.rotation.x += -.12 * ew + Math.sin(tt * 1.4 + 1) * .07 * sway;
         media.position.y += Math.sin(tt * 1.7) * .03 * sway;
       }
-      const lk = 1 + (cur.kind === 'cart' ? .55 : .5) * o; media.scale.multiplyScalar(lk);
+      const lk = 1 + (cur.kind === 'cart' ? (media.userData.hand > 1 ? .5 : .12) : .5) * o; // (a small card is held up bigger already; a big cartridge barely) media.scale.multiplyScalar(lk);
       if (st.dive0) { const d = easeIn3(Math.min(1, (now - st.dive0) / 520)); media.position.z += d * 2.6; media.position.y -= d * .05; }
     } else if (media.userData.blurMat) media.userData.blurMat.opacity = 0;
     const perPx = (2 * 3.9 * Math.tan(camera.fov * DEG / 2)) / innerHeight;
@@ -959,7 +997,7 @@ let spineMat = null, standInSpine = null;
   function setPose(rx, ry, zoom, px, py, busy, flip, base) { if (busy) lastMove = performance.now(); st.rx = rx; st.ry = ry; st.zoom = zoom; st.px = px; st.py = py; st.flip = flip || 0; st.own = base != null; st.base = base || 0; } // (base null: Windows, the disc turns with the case as before)
   function setState(n) { st.state = n; applyState(false); }
   function dive() { if (st.launch) st.dive0 = performance.now(); }
-  function launch(on) { st.launch = !!on; st.lv = 0; st.ls = 0; st.dive0 = 0; st.l0 = performance.now(); if (on && active && !raf && renderer) { paused = false; lastT = 0; raf = requestAnimationFrame(frame); } }
+  function launch(on) { st.launch = !!on; st.lv = 0; st.ls = 0; st.tq = 0; st.tqv = 0; st.dive0 = 0; st.l0 = performance.now(); if (on && active && !raf && renderer) { paused = false; lastT = 0; raf = requestAnimationFrame(frame); } }
   function bump() { st.bump = .12; }
   // (beta.12, touch) what's under a finger on the screen: 'manual' (the booklet in the lid), 'disc' (the disc or
   // cartridge), or null (the case itself, or nothing). Whatever is nearest along the line of sight wins, so a case wall in

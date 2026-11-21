@@ -200,7 +200,7 @@ body.reduce-motion .rd-book{transition:none}
 .inspect.unboxing .isp-fx{animation:fadein .6s 1.5s forwards}
 .inspect.unboxing .isp-stage{z-index:3}
 .inspect.unboxing .isp-launch{animation:fadein .5s 1.75s forwards}
-.inspect.unboxing .isp-lbar i{animation:unbLoad 1.25s 1.85s cubic-bezier(.4,0,.2,1) forwards}
+.inspect.unboxing .isp-lbar i{animation:unbLoad 1.55s 1.85s cubic-bezier(.4,0,.2,1) forwards}
 .isp-flash{inset:0;z-index:5;background:radial-gradient(circle at 50% 47%,#fff 0,color-mix(in srgb,var(--accent,#9d8cff) 70%,#fff) 25%,var(--accent,#9d8cff) 55%,#000 100%)}
 .inspect.unboxing.dive .isp-flash{animation:unbFlash .55s .12s cubic-bezier(.5,0,.6,1) forwards}
 .inspect.unboxing.dive .isp-launch{opacity:1;animation:unbOut .3s forwards}
