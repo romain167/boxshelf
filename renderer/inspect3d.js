@@ -499,6 +499,32 @@ let spineMat = null, standInSpine = null;
     for (let i = a == null ? 0 : a; i < (b == null ? uv.count : b); i++) uv.setXY(i, a0 + u0[i * 2] * (a1 - a0), b0 + u0[i * 2 + 1] * (b1 - b0)); uv.needsUpdate = true;
   }
   // how far above the middle the media sits (case heights = 1): a GameCube disc rides high to leave room for the card holder
+  // (fork) each console's card / cartridge plastic
+  const CART_SHELL = { sw: 0x2a2b30, sw2: 0xb8121e, n3ds: 0xd6d8de, nds: 0x3b3c42, n64: 0x8f9299, snes: 0x9a9ba2, nes: 0x8a8b90, gb: 0x8d8e93, gbc: 0x8d8e93, gba: 0x4c4e55 };
+  const DISC_WORD = { wii: 'Wii', wiiu: 'Wii U', gc: 'NINTENDO GAMECUBE', ps2: 'PlayStation 2', ps3: 'PS3', ps4: 'PS4', ps5: 'PS5', psx: 'PlayStation', psp: 'UMD', x360: 'XBOX 360', xbox: 'XBOX', dreamcast: 'DREAMCAST', saturn: 'SEGA SATURN' };
+  // The printed side of a disc, from the cover: the art fills the ring (centre crop), a soft edge, a fine ring where the
+  // print stops at the mirror band, the console's name round the top and the game's name small along the bottom edge
+  function discLabelCanvas(im, o, fmt) {
+    const S = 1024, m = S / 2, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
+    x.save(); x.beginPath(); x.arc(m, m, m * .99, 0, Math.PI * 2); x.clip();
+    const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height, k = Math.max(S / iw, S / ih) * 1.04;
+    x.drawImage(im, m - iw * k / 2, m - ih * k * .46, iw * k, ih * k); // a touch above the middle: covers keep their art high
+    const vg = x.createRadialGradient(m, m, m * .36, m, m, m); vg.addColorStop(0, 'rgba(0,0,0,.18)'); vg.addColorStop(.25, 'rgba(0,0,0,0)'); vg.addColorStop(.85, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.35)'); x.fillStyle = vg; x.fillRect(0, 0, S, S);
+    x.strokeStyle = 'rgba(255,255,255,.85)'; x.lineWidth = 5; x.beginPath(); x.arc(m, m, m * .362, 0, Math.PI * 2); x.stroke();
+    x.strokeStyle = 'rgba(255,255,255,.35)'; x.lineWidth = 2; x.beginPath(); x.arc(m, m, m * .965, 0, Math.PI * 2); x.stroke();
+    const arc = (txt, r, size, weight, top, alpha) => { x.save(); x.translate(m, m); x.font = `${weight} ${size}px system-ui,Segoe UI,Arial,sans-serif`; x.fillStyle = `rgba(255,255,255,${alpha})`; x.shadowColor = 'rgba(0,0,0,.6)'; x.shadowBlur = 6; x.textAlign = 'center'; x.textBaseline = 'middle';
+      const w = x.measureText(txt).width, ang = w / r; let a = (top ? -Math.PI / 2 : Math.PI / 2) + (top ? -ang / 2 : ang / 2);
+      for (const ch of txt) { const cw = x.measureText(ch).width / r; a += top ? cw / 2 : -cw / 2; x.save(); x.rotate(a); x.translate(top ? r : -r, 0); x.rotate(top ? Math.PI / 2 : -Math.PI / 2 + Math.PI); x.fillText(ch, 0, 0); x.restore(); a += top ? cw / 2 : -cw / 2; } x.restore(); };
+    const word = DISC_WORD[o.sys]; if (word) arc(word, m * .86, Math.round(S * (word.length > 10 ? .036 : .052)), 800, true, .95);
+    if (o.title) arc(String(o.title).toUpperCase().slice(0, 48), m * .9, Math.round(S * .024), 600, false, .8);
+    x.restore(); return c;
+  }
+  // a copy smeared round the centre, as the eye sees a disc spinning fast
+  function spinBlur(src) {
+    const S = 512, m = S / 2, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d'), N = 24;
+    for (let i = 0; i < N; i++) { x.save(); x.globalAlpha = 1 / (i + 1); x.translate(m, m); x.rotate((i / (N - 1) - .5) * .9); x.drawImage(src, -m, -m, S, S); x.restore(); }
+    return c;
+  }
   function discLift(kind, sys) { return (CASES[sys] && CASES[sys].lift) || 0; }
   // The disc's underside, by format: a clear outer rim; the data area, a mirror with fine concentric grooves (the
   // rainbow comes from the material's iridescence as you turn it) and a slightly different sheen where the data
@@ -622,14 +648,14 @@ let spineMat = null, standInSpine = null;
     } else if (o.kind === 'cart') {
       // (beta.14) at its real size (a Switch card 21 x 31 mm, a DS card 33 x 35, an N64 cartridge lying landscape 116 x 75)
       const cw = md.cw, ch = md.ch, cd = md.ct;
-      const shell = new THREE.MeshPhysicalMaterial({ color: 0x24252b, roughness: .55, clearcoat: .2 });
-      const cart = new THREE.Mesh(new RB(cw, ch, cd, 3, Math.min(.008, cd * .3, cw * .08)), [shell, shell, shell, shell, new THREE.MeshPhysicalMaterial({ map: labelMap, roughness: .45, clearcoat: .3 }), shell]);
+      const shell = new THREE.MeshPhysicalMaterial({ color: CART_SHELL[o.sys] || 0x24252b, roughness: .5, clearcoat: .25 }); // (fork) each console's own card / cartridge plastic
+      const cart = new THREE.Mesh(new RB(cw, ch, cd, 3, Math.min(.008, cd * .3, cw * .08)), [shell, shell, shell, shell, new THREE.MeshPhysicalMaterial({ map: labelMap, roughness: .38, clearcoat: .7, clearcoatRoughness: .12 }), shell]);
       media = new THREE.Group(); media.add(cart);
       // (beta.14, #32) the gold contacts sit on the back only (the label side has none), as on a real DS / 3DS / Switch card
       const pins = new THREE.Mesh(new THREE.BoxGeometry(cw * .7, ch * .12, .0012), new THREE.MeshStandardMaterial({ color: 0xc9a24a, metalness: .8, roughness: .35 })); pins.position.set(0, -ch / 2 + ch * .08, -cd / 2 - .0006); media.add(pins);
     } else {
       const R = md.R;
-      const label = new THREE.MeshPhysicalMaterial({ map: labelMap, roughness: .3, clearcoat: .6, clearcoatRoughness: .15 });
+      const label = new THREE.MeshPhysicalMaterial({ map: labelMap, roughness: .42, clearcoat: .35, clearcoatRoughness: .2, envMapIntensity: .55 }); // (fork) less mirror-like: tipped back under the lights it washed out white
       const fmt = s.disc || (o.sys === 'ps3' || o.sys === 'ps4' || o.sys === 'ps5' || o.sys === 'wiiu' ? 'bd' : o.sys === 'gc' ? 'gc' : 'dvd');
       let hcode = 0; for (const ch of (o.title || 'disc')) hcode = (hcode * 31 + ch.charCodeAt(0)) >>> 0;
       const code = `${(o.sys || 'DSC').toUpperCase()}-${(hcode % 9000 + 1000)}-${String.fromCharCode(65 + hcode % 26)}${String.fromCharCode(65 + (hcode >> 5) % 26)}  ${(hcode >> 9) % 90 + 10}`;
@@ -639,7 +665,20 @@ let spineMat = null, standInSpine = null;
       // draws the clear plastic as plain see-through instead, which looks nearly the same on a small screen
       const glass = !window.Perf || Perf.get().glass !== false;
       const TH = .0045, clear = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: glass ? .35 : .45, roughness: .05, transmission: glass ? .6 : 0, thickness: .01, clearcoat: 1 });
-      const top = new THREE.Mesh(new THREE.RingGeometry(R * .22, R, 128), label); top.position.z = TH / 2; media.add(top);
+      // (fork) the printed face: the label from .36 R out (a drawn one from the cover, with the console's name round the top,
+      // when there's no real disc scan), the bare mirror band inside it, and a blurred copy that shows as the disc spins fast
+      const R0 = o.disc ? .22 : .36;
+      const top = new THREE.Mesh(new THREE.RingGeometry(R * R0, R, 128), label); top.position.z = TH / 2; media.add(top);
+      if (!o.disc) { const mir = new THREE.Mesh(new THREE.RingGeometry(R * .22, R * .36, 96), new THREE.MeshPhysicalMaterial({ color: 0xeceef4, metalness: 1, roughness: .07, iridescence: .7, iridescenceIOR: 1.5, iridescenceThicknessRange: [150, 450], clearcoat: .5 })); mir.position.z = TH / 2; media.add(mir); }
+      const blurMat = new THREE.MeshPhysicalMaterial({ transparent: true, opacity: 0, depthWrite: false, roughness: .5, clearcoat: .2, clearcoatRoughness: .3, envMapIntensity: .4 });
+      const blurM = new THREE.Mesh(new THREE.RingGeometry(R * R0, R, 128), blurMat); blurM.position.z = TH / 2 + .0003; blurM.visible = false; media.add(blurM);
+      const mySeq = mediaSeq;
+      if (labelMap) labelMap.userData.p.then(ok => { if (!ok || mySeq !== mediaSeq || !renderer) return;
+        try { const src = o.disc ? labelMap.image : discLabelCanvas(labelMap.image, o, fmt);
+          if (!o.disc) { const lt = new THREE.CanvasTexture(src); lt.colorSpace = THREE.SRGBColorSpace; lt.anisotropy = 8; label.map = lt; label.needsUpdate = true; label.userData.own = lt; }
+          const bt = new THREE.CanvasTexture(spinBlur(src)); bt.colorSpace = THREE.SRGBColorSpace; blurMat.map = bt; blurMat.needsUpdate = true; blurM.visible = true; blurMat.userData.own = bt;
+        } catch (e) { console.warn('disc label', e); } });
+      media.userData.blurMat = blurMat;
       // underside: planar UVs so the round texture lands on the ring as drawn; a clear outer rim beyond the data
       const bg = new THREE.RingGeometry(R * .2, R * .985, 128), bp = bg.attributes.position, bu = bg.attributes.uv; for (let i = 0; i < bp.count; i++) bu.setXY(i, .5 + bp.getX(i) / (2 * R), .5 + bp.getY(i) / (2 * R)); bu.needsUpdate = true;
       const bottom = new THREE.Mesh(bg, data); bottom.rotation.y = Math.PI; bottom.position.z = -TH / 2; media.add(bottom);
@@ -795,6 +834,26 @@ let spineMat = null, standInSpine = null;
       // applied in the disc's plane first, then the turn, then the tilt)
       media.rotation.set(-st.rx * o * DEG, (st.flip + dw) * o * DEG, st.spin);
     }
+    // (fork) launching. A disc tips back as in a drive (about 22°), spins up and, once fast, its print smears; it wavers a
+    // little on its hub. A cartridge makes one slow turn (its back and contacts show), then hovers and sways. Both come closer;
+    // at the end (dive) the media rushes at the camera as the screen washes over to the game.
+    if (st.launch && o > .01) {
+      const tt = (now - (st.l0 || now)) / 1000, w = Math.min(1, tt / .9), ew = easeIO(w);
+      if (cur.kind !== 'cart') {
+        st.lv = sm(st.lv || 0, reduce ? 0 : 17, 1 - Math.exp(-dt * 1.15)); st.ls = (st.ls || 0) + dt * st.lv;
+        media.rotation.z += st.ls;
+        const vk = Math.min(1, st.lv / 17);
+        media.rotation.x += -.62 * ew + Math.sin(tt * 9.1) * .012 * vk; media.rotation.y += Math.sin(tt * 6.3 + .7) * .016 * vk;
+        media.position.y += .035 * ew;
+        const bm = media.userData.blurMat; if (bm) bm.opacity = Math.max(0, Math.min(.9, (st.lv - 5) / 9));
+      } else if (!reduce) {
+        const turn = easeIO(Math.min(1, tt / 1.7)) * Math.PI * 2, sway = Math.max(0, Math.min(1, (tt - 1.2) / .8));
+        media.rotation.y += turn + Math.sin(tt * 1.15) * .22 * sway; media.rotation.x += -.12 * ew + Math.sin(tt * 1.4 + 1) * .07 * sway;
+        media.position.y += Math.sin(tt * 1.7) * .03 * sway;
+      }
+      const lk = 1 + (cur.kind === 'cart' ? .55 : .5) * o; media.scale.multiplyScalar(lk);
+      if (st.dive0) { const d = easeIn3(Math.min(1, (now - st.dive0) / 520)); media.position.z += d * 2.6; media.position.y -= d * .05; }
+    } else if (media.userData.blurMat) media.userData.blurMat.opacity = 0;
     const perPx = (2 * 3.9 * Math.tan(camera.fov * DEG / 2)) / innerHeight;
     const e = easeIO(st.in);
     if (cur.from && !reduce) {
@@ -816,6 +875,7 @@ let spineMat = null, standInSpine = null;
     }
     renderer.render(scene, camera);
   }
+  const easeIn3 = t => t * t * t;
   const easeIO = t => t <= 0 ? 0 : t >= 1 ? 1 : (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
   const sameGame = (a, b) => a && b && a.front === b.front && a.back === b.back && a.sys === b.sys && !!a.from === !!b.from;
@@ -898,6 +958,8 @@ let spineMat = null, standInSpine = null;
   // flip: the disc turned over (degrees, eased by the caller); base: the turn (ry) it had when it came out of the case
   function setPose(rx, ry, zoom, px, py, busy, flip, base) { if (busy) lastMove = performance.now(); st.rx = rx; st.ry = ry; st.zoom = zoom; st.px = px; st.py = py; st.flip = flip || 0; st.own = base != null; st.base = base || 0; } // (base null: Windows, the disc turns with the case as before)
   function setState(n) { st.state = n; applyState(false); }
+  function dive() { if (st.launch) st.dive0 = performance.now(); }
+  function launch(on) { st.launch = !!on; st.lv = 0; st.ls = 0; st.dive0 = 0; st.l0 = performance.now(); if (on && active && !raf && renderer) { paused = false; lastT = 0; raf = requestAnimationFrame(frame); } }
   function bump() { st.bump = .12; }
   // (beta.12, touch) what's under a finger on the screen: 'manual' (the booklet in the lid), 'disc' (the disc or
   // cartridge), or null (the case itself, or nothing). Whatever is nearest along the line of sight wins, so a case wall in
@@ -920,7 +982,7 @@ let spineMat = null, standInSpine = null;
   addEventListener('resize', () => { if (renderer && active) resize(); });
   // the lid's manual, when it arrives late (Boxshelf's own booklet is drawn after the case opens)
   function setManual(url) { const m = built && built.manMat; if (!manualPlane || !m || !url || (cur && cur.manual)) return; const t = loadTex(url); m.map = t; m.color.set(0xffffff); m.needsUpdate = true; if (cur) cur.manual = url; fitManual(); }
-  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, bump, hitAt, setPaused, isActive: () => active,
+  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, launch, dive, bump, hitAt, setPaused, isActive: () => active,
     busy: () => !paused && (phase === 'out' || phase === 'fade' || phase === 'wait' || phase === 'in'), _st: () => ({ phase, in: st.in, ry: st.ry, rotY: rot ? Math.round(rot.rotation.y / DEG) : null, ready, fade: !!fadeT0, pend: !!pend, op: canvas && canvas.style.opacity, on: !!(canvas && canvas.classList.contains('on')), from: cur && cur.from, standIn: !!standInTex, tok, disc: discPose(), manual: manualXY(), spine: !!(spineM && spineM.parent && spineM.parent.parent), lid: st.lid, lidT: st.lidT, manSlide: st.man || 0, paused, cs: caseInfo }) }; // (beta.11 spine: the printed spine is on the case; beta.14 cs: the case built: its type, booklet, media size, meshes)
   // (test hook) where on the screen the middle of the lid's manual is, in page pixels (null when it isn't drawn)
   function manualXY() { if (!manualPlane || !camera || !canvas) return null; const THREE = T(); scene.updateMatrixWorld(true); const p = manualPlane.getWorldPosition(new THREE.Vector3()).project(camera), r = canvas.getBoundingClientRect();

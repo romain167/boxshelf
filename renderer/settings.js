@@ -850,6 +850,7 @@ function conPages(id){
     // screen (the console's look with the game's cover and a progress line) covers the emulator starting. With the boot
     // screen off and no video, the built-in intro plays instead.
     T("Boot screen with the game's cover",p+"insertAnim",true,"The console's start-up look with the game's cover and a progress line while the emulator opens.",{keys:"insert animation disc cartridge launch"}),
+    T("3D opening",p+"unbox3d",true,"With the boot screen on: the game's own case comes off the shelf and opens, the disc spins up or the cartridge comes out, then you dive into the game. Off: the flat boot screen.",{keys:"unbox open case disc spin cartridge 3d launch animation"}),
     T("Your boot video before games",p+"bootOnLaunch",true,"Plays the boot video you added for this console (Customize) before the game, instead of the boot screen. Without a video, the built-in intro plays only when the boot screen is off.",{keys:"boot animation intro launch"}));
   // everyday rows above; the emulator's own tools, launch options and this console's startup oddities on one sub-page
   // (Emulator & advanced), so the page fits a TV screen. Built here so both pages share this call's row objects.

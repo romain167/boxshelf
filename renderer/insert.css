@@ -408,3 +408,26 @@ body.reduce-motion .insert.go .cube-well::after{animation:none!important}
 @keyframes hatchOpen{from{transform:rotateX(0)}to{transform:rotateX(70deg)}}
 @keyframes hatchClose{0%{transform:rotateX(70deg);animation-timing-function:cubic-bezier(.55,0,.9,.6)}70%{transform:rotateX(0);animation-timing-function:cubic-bezier(.2,.6,.4,1)}84%{transform:rotateX(5deg)}100%{transform:rotateX(0)}}
 body.reduce-motion .insert.go .deck-slot::after{animation:none!important}
+
+/* ---- (fork) "unbox": the case opens, the disc / cartridge lifts out and stays in the middle (disc spinning) until the game starts ---- */
+.insert.unbox .ins-console,.insert.unbox .ins-cube,.insert.unbox .ins-dock,.insert.unbox .ins-deck,.insert.unbox .ins-slide{display:none!important}
+.insert.unbox .ins-media{z-index:6}
+.insert.unbox .ins-text{bottom:12vh}
+.insert.unbox.go .ins-case{animation:insCaseIn2 .45s cubic-bezier(.2,.8,.2,1) both,unbCaseOut .6s 1.55s cubic-bezier(.5,0,.8,.4) forwards}
+.insert.unbox.go .ins-lid{animation:insLid2 .75s .35s cubic-bezier(.4,0,.2,1) forwards}
+.insert.unbox.go .ins-shade{animation:insShade .6s .4s ease-out forwards}
+.insert.unbox.go .ins-media{animation:unbMedia 1.6s .3s cubic-bezier(.45,0,.25,1) forwards,unbFloat 2.6s 1.9s ease-in-out infinite alternate}
+.insert.unbox.go .ins-label{animation:unbSpinUp 1.3s 1.05s cubic-bezier(.55,0,1,1),insSpin .5s 2.35s linear infinite}
+.insert.unbox.cart.go .ins-label,.insert.unbox.floppy.go .ins-label{animation:none}
+.insert.unbox.go .ins-glint::after{animation:insGlint .8s 1.75s ease-out forwards}
+.insert.unbox.go .ins-text{animation:fadein .5s 1.9s forwards}
+@keyframes unbCaseOut{from{opacity:1;transform:rotateX(8deg) rotateY(-12deg)}to{opacity:0;transform:translateY(34vh) translateZ(-260px) rotateX(38deg) rotateY(-12deg) scale(.8)}}
+@keyframes unbMedia{
+  0%{opacity:0;transform:rotateX(8deg) rotateY(-12deg)}
+  26%{opacity:0;transform:rotateX(8deg) rotateY(-12deg)}
+  32%{opacity:1;transform:rotateX(8deg) rotateY(-12deg)}
+  44%{opacity:1;transform:rotateX(8deg) rotateY(-12deg) scale(.96)}
+  70%{opacity:1;transform:translateY(-7vh) translateZ(150px) rotateX(-12deg) rotateY(8deg) scale(1.1)}
+  100%{opacity:1;transform:scale(var(--us))}}
+@keyframes unbFloat{from{opacity:1;transform:scale(var(--us))}to{opacity:1;transform:translateY(-1.6vh) rotateX(6deg) rotateY(-5deg) scale(var(--us))}}
+@keyframes unbSpinUp{from{transform:rotate(0)}to{transform:rotate(360deg)}}

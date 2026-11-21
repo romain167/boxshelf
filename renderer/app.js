@@ -2085,7 +2085,7 @@ const SLIDE_LOOKS=new Set(["gc","wii","wiiu","sw","psp","ps3","ps2","ps4","ps5",
 const WAVE=(amp,len,ph)=>{let d=`M0 ${50+amp*Math.sin(ph)}`;for(let x=10;x<=2000;x+=10)d+=` L${x} ${(50+amp*Math.sin(x/len*Math.PI*2+ph)+amp*.35*Math.sin(x/len*Math.PI*5.3+ph*2)).toFixed(1)}`;return d};
 function runSlide(s,g,done,hideAfter){
   const el=$("insert"),sl=$("bslide"),style=STYLE[s.id]||STYLE.media,front=frontUrl(g),look=SLIDE_LOOKS.has(s.id)?s.id:s.id==="sw2"?"sw":"other"; /* (Switch 2: the Switch boot slide) */
-  el.classList.remove("go","out","cart","umd","topload","slotload","has-model","has-console");Object.values(DECK).forEach(c=>el.classList.remove(c));
+  el.classList.remove("go","out","cart","umd","floppy","unbox","topload","slotload","has-model","has-console");Object.values(DECK).forEach(c=>el.classList.remove(c));
   el.classList.add("slide");sl.className="ins-slide bs-"+look;sl.classList.toggle("no-cover",!front);
   const [t0,t1]=style.tint||["#2a2f6e","#0b0d1f"];sl.style.setProperty("--bs-t0",t0);sl.style.setProperty("--bs-t1",t1);if(look==="other")sl.style.setProperty("--bs-acc",style.glow||"#9d8cff");else sl.style.removeProperty("--bs-acc");
   sl.style.setProperty("--bs-ratio",style.ratio||.71);
@@ -2105,8 +2105,76 @@ function runSlide(s,g,done,hideAfter){
 }
 // (fork) the native port a Switch game starts in by default ("" for the shelf's emulator)
 const nativeName=g=>({peanuts:"Peanuts Native",banana:"Banana Native"})[g&&g.nativeEmu]||"";
+// (fork) "unbox": the case opens, the disc / cartridge lifts out of its seat, comes to the middle and spins (a disc) or floats
+// (a cartridge) under the game's name, then the game starts. Replaces the boot slide.
+function runUnbox(s,g,done,hideAfter){
+  const el=$("insert"),style=STYLE[s.id]||STYLE.media,m=MEDIA[s.id]||MEDIA.wii,f0=frontUrl(g),front=f0?thumb(f0,900):"";
+  el.classList.remove("go","out","slide","cart","umd","floppy","topload","slotload","has-model","has-console");Object.values(DECK).forEach(c=>el.classList.remove(c));
+  el.classList.add("unbox");if(m.kind!=="disc")el.classList.add(m.kind);if(m.form)el.classList.add(m.form);
+  const ch=Math.min(innerHeight*.46,innerWidth*.3/(style.ratio||.71)),cw=ch*(style.ratio||.71);
+  el.style.setProperty("--ch",ch+"px");el.style.setProperty("--cw",cw+"px");el.style.setProperty("--disc",(cw*(m.size||.889))+"px");
+  el.style.setProperty("--case",style.caseColor||"#16161b");el.style.setProperty("--case-in",style.caseSide||"#0f0f13");el.style.setProperty("--accent",style.glow||"#9d8cff");
+  el.style.setProperty("--us",m.form==="floppy"?1.45:m.kind==="cart"?1.85:m.kind==="umd"?1.55:1.3);
+  tinyBlur((g.art&&(g.art.hero||g.art.front))||f0,d=>{el.querySelector(".ins-bg img").src=d||""});
+  el.querySelector(".ins-lid-front img").src=front;
+  const man=el.querySelector(".ins-manual");if(man){const mc=manualCover(g);man.style.backgroundImage=mc?`url("${mc}")`:"";man.style.backgroundSize="cover";man.style.backgroundPosition="center";man.classList.toggle("real",!!mc)}
+  el.querySelector(".ins-label").style.backgroundImage=front?`url("${front}")`:"";
+  $("insEmu").textContent=`Starting ${nativeName(g)||s.emulatorName||""}`.trim();$("insTitle").textContent=g.title;
+  el.classList.add("on");el.setAttribute("aria-hidden","false");void el.offsetWidth;el.classList.add("go");
+  lastGoAt=performance.now();play_("go");setTimeout(()=>play_("discOut"),820);setTimeout(()=>rumble(.3,.2,70),1450);
+  if(m.kind==="disc"||m.kind==="umd")setTimeout(()=>play_("whir"),1150);else setTimeout(()=>play_("seat"),1900);
+  clearTimeout(insertT);insertT=setTimeout(()=>{if(hideAfter)hideInsert();if(done)done()},reduced()?300:2500);
+  insertSeatAt=performance.now()+(reduced()?250:2450); // the emulator starts once the media is out and turning
+}
+// (fork) the launch, through the shelf's own 3D case (Inspect): the box comes off the shelf, opens the way that console's case
+// opens, the disc / cartridge comes out (the case slides away), the disc spins up / the cartridge hovers under the game's name,
+// then the game starts. Same case, cover, spine and media as Inspect, so every console and game looks like itself.
+// Falls back to the flat version (runUnbox) without WebGL or when the box isn't on screen.
+let unboxT=[],unboxFxRaf=0;
+// (fork) what the launch remembers per game (kept on the device): the colour picked from its cover. Worked out once, on its
+// first launch, then read straight back; a new game gets its own the first time it starts.
+const launchDb=(()=>{let d={};try{d=JSON.parse(localStorage.getItem("bs.launchDb")||"{}")||{}}catch{}
+  return {get:id=>d[id],set:(id,v)=>{d[id]=Object.assign(d[id]||{},v);try{localStorage.setItem("bs.launchDb",JSON.stringify(d))}catch{}}}})();
+// the cover's own colour: the brightest well-saturated tone of its few-pixel copy (not the muddy average)
+function coverAccent(g,cb){const k=g.id||g.title,have=launchDb.get(k);if(have&&have.accent)return cb(have.accent);
+  tinyBlur((g.art&&g.art.front)||frontUrl(g),d=>{if(!d)return cb(null);const im=new Image();im.onload=()=>{try{const c=document.createElement("canvas");c.width=18;c.height=24;const x=c.getContext("2d",{willReadFrequently:true});x.drawImage(im,0,0,18,24);const px=x.getImageData(0,0,18,24).data;
+    let best=null,bs=-1;for(let i=0;i<px.length;i+=4){const r=px[i],gg=px[i+1],b=px[i+2],mx=Math.max(r,gg,b),mn=Math.min(r,gg,b),sat=mx?(mx-mn)/mx:0,sc=sat*1.4+mx/255*.6-(mx<60?1:0);if(sc>bs){bs=sc;best=[r,gg,b]}}
+    if(!best)return cb(null);const mx=Math.max(...best)||1,f=Math.min(1.6,230/mx),hex="#"+best.map(v=>Math.min(255,Math.round(v*f)).toString(16).padStart(2,"0")).join("");launchDb.set(k,{accent:hex});cb(hex)}catch{cb(null)}};im.onerror=()=>cb(null);im.src=d})}
+// light motes drifting out from the media in the game's colour (a small 2D canvas, only while a game starts)
+function unboxFx(on,col){const cv=$("ispFx");cancelAnimationFrame(unboxFxRaf);unboxFxRaf=0;if(!cv)return;const x=cv.getContext("2d");if(!on||reduced()){x.clearRect(0,0,cv.width,cv.height);return}
+  const W=cv.width=Math.round(innerWidth/2),H=cv.height=Math.round(innerHeight/2),P=[];const rgb=(col||"#9d8cff").replace("#","").match(/../g).map(h=>Math.round(parseInt(h,16)*.65+255*.35));
+  const spawn=t=>{const a=Math.random()*Math.PI*2,r=H*(.12+Math.random()*.1);P.push({x:W/2+Math.cos(a)*r,y:H*.47+Math.sin(a)*r*.8,vx:Math.cos(a)*(8+Math.random()*22),vy:Math.sin(a)*(6+Math.random()*16)-6,s:.35+Math.random()*.9,b:t,l:2.2+Math.random()*2})};
+  let lt=performance.now(),boost=0;cv._boost=()=>{boost=1};
+  const step=t=>{const dt=Math.min(.05,(t-lt)/1000);lt=t;x.clearRect(0,0,W,H);x.globalCompositeOperation="lighter";
+    const n=boost?5:(Math.random()<.8?1:0);for(let k=0;k<n;k++)if(P.length<90)spawn(t);
+    for(let i=P.length-1;i>=0;i--){const p=P[i],age=(t-p.b)/1000;if(age>p.l){P.splice(i,1);continue}const sp=1+boost*5;p.x+=p.vx*dt*sp;p.y+=p.vy*dt*sp;const al=Math.sin(Math.PI*age/p.l)*.7,rad=p.s*(1+boost*1.2);
+      const gr=x.createRadialGradient(p.x,p.y,0,p.x,p.y,rad*3);gr.addColorStop(0,`rgba(${rgb},${al})`);gr.addColorStop(1,`rgba(${rgb},0)`);x.fillStyle=gr;x.fillRect(p.x-rad*3,p.y-rad*3,rad*6,rad*6)}
+    unboxFxRaf=requestAnimationFrame(step)};unboxFxRaf=requestAnimationFrame(step)}
+// (fork) the launch, through the shelf's own 3D case (Inspect): the box comes off the shelf, opens the way that console's case
+// opens, the disc / cartridge comes out (the case slides away) and spins up / turns in the game's own light, under its name;
+// then it rushes at you as the screen washes over into the game. Same case, cover, spine and media as Inspect, so every
+// console and game looks like itself. Falls back to the flat version (runUnbox) without WebGL or when the box isn't on screen.
+function runUnbox3D(s,g,done){
+  if(!(window.Inspect3D&&Inspect3D.available())||curGame()!==g||!slotPose(slots[sel])||(mode!=="browse"&&mode!=="details"))return false;
+  openInspect();if(mode!=="inspect"||!Inspect3D.isActive()){closeInspect();return false}
+  mode="launch";const el=$("inspect");el.classList.remove("dive");el.classList.add("unboxing");
+  const L=$("ispLaunch");L.querySelector(".l-emu").textContent=`Starting ${nativeName(g)||s.emulatorName||""}`.trim();L.querySelector(".l-title").textContent=g.title;
+  const bar=L.querySelector(".isp-lbar i");bar.style.animation="none";void bar.offsetWidth;bar.style.animation="";
+  coverAccent(g,c=>{if(c&&el.classList.contains("unboxing"))el.style.setProperty("--accent",c);unboxFx(el.classList.contains("unboxing"),c||(STYLE[s.id]||{}).glow)});
+  const r=reduced(),T=(ms,f)=>unboxT.push(setTimeout(f,r?Math.min(ms,200):ms));unboxT.forEach(clearTimeout);unboxT=[];
+  lastGoAt=performance.now();play_("go");
+  T(720,()=>{isp.state=0;ispAdvance()});                                  // the lid / flap opens
+  T(1480,()=>{ispAdvance();Inspect3D.launch(true);rumble(.3,.2,70)});     // out comes the media, the case slides away
+  T(1700,()=>{if(isp.state===2&&!el.classList.contains("cart"))play_("whir")});
+  T(2700,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the game
+  T(3050,()=>{if(done)done()});
+  insertSeatAt=performance.now()+(r?250:3000); // the emulator only starts once the screen has washed over
+  return true;
+}
+function unboxEnd(){unboxT.forEach(clearTimeout);unboxT=[];unboxFx(false);const el=$("inspect");if(!el.classList.contains("unboxing"))return;el.classList.remove("unboxing","dive");
+  if(window.Inspect3D&&Inspect3D.launch)Inspect3D.launch(false);const m0=mode;mode="inspect";closeInspect();mode=m0==="inspect"?"browse":m0} // the case closes and flies back into its slot
 function runInsert(s,g,done,hideAfter){
-  if(!INSERT_3D){runSlide(s,g,done,hideAfter);return}
+  if(!INSERT_3D){if(s.unbox3d===false){runSlide(s,g,done,hideAfter);return}if(!runUnbox3D(s,g,done))runUnbox(s,g,done,hideAfter);return}
   $("insert").classList.remove("slide");
   const el=$("insert"),style=STYLE[s.id]||STYLE.media,m=MEDIA[s.id]||MEDIA.wii;
   const front=frontUrl(g);
@@ -2187,7 +2255,7 @@ function runInsert(s,g,done,hideAfter){
 }
 function mix(a,b,t){const h=x=>{x=x.replace("#","");if(x.length===3)x=x.split("").map(c=>c+c).join("");return [0,2,4].map(i=>parseInt(x.slice(i,i+2),16))};
   const A=h(a),B=h(b);return "#"+A.map((v,i)=>Math.round(v+(B[i]-v)*t).toString(16).padStart(2,"0")).join("")}
-function hideInsert(){const el=$("insert");setTimeout(()=>{const i=$("bsBar")&&$("bsBar").querySelector("i");if(i&&!el.classList.contains("on")){i.style.transition="";i.style.width=""}},700);const ib=el.querySelector(".ins-bar");if(ib)ib.classList.remove("on");if(!el.classList.contains("on"))return;el.classList.add("out");setTimeout(()=>{if(el.classList.contains("go")&&!el.classList.contains("out"))return; /* shown again meanwhile */el.classList.remove("on","go","out","slide");const fx=$("bsFx");if(fx)fx.innerHTML=""; /* the slide's looping effects stop with it */el.setAttribute("aria-hidden","true");if(window.ConsoleModel)ConsoleModel.stop()},460)}
+function hideInsert(){if($("inspect").classList.contains("unboxing"))setTimeout(unboxEnd,0);const el=$("insert");setTimeout(()=>{const i=$("bsBar")&&$("bsBar").querySelector("i");if(i&&!el.classList.contains("on")){i.style.transition="";i.style.width=""}},700);const ib=el.querySelector(".ins-bar");if(ib)ib.classList.remove("on");if(!el.classList.contains("on"))return;el.classList.add("out");setTimeout(()=>{if(el.classList.contains("go")&&!el.classList.contains("out"))return; /* shown again meanwhile */el.classList.remove("on","go","out","slide","unbox");const fx=$("bsFx");if(fx)fx.innerHTML=""; /* the slide's looping effects stop with it */el.setAttribute("aria-hidden","true");if(window.ConsoleModel)ConsoleModel.stop()},460)}
 // Customize → Test: play the insert animation for this shelf without launching anything
 function testModel(id){
   const sh=shelves.find(x=>x.id===id);const g=sh&&sh.games&&sh.games.find(x=>x.kind==="rom");
