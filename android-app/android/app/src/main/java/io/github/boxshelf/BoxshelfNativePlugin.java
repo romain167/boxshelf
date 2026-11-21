@@ -206,6 +206,51 @@ public class BoxshelfNativePlugin extends Plugin {
         });
     }
 
+    // (fork: native ports) Switch games kept as unpacked folders for Peanuts Native / Banana Native: a folder is a game when
+    // it holds base/, exefs/, romfs/ or updates/ directly. Game folders are not walked into (their romfs can hold thousands
+    // of folders). → { dirs: [{ name, docId, uri, mtime }] }
+    @PluginMethod
+    public void listGameDirs(PluginCall call) {
+        final String treeStr = call.getString("uri");
+        final int maxDepth = call.getInt("depth", 3);
+        if (treeStr == null) { call.reject("No folder given"); return; }
+        io.execute(() -> {
+            try {
+                Set<String> marks = new HashSet<>(java.util.Arrays.asList("base", "exefs", "romfs", "updates"));
+                Uri tree = Uri.parse(treeStr);
+                ContentResolver cr = getContext().getContentResolver();
+                String[] cols = { DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                        DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_LAST_MODIFIED };
+                JSArray out = new JSArray();
+                ArrayDeque<String[]> todo = new ArrayDeque<>(); // { docId, name, depth }
+                todo.add(new String[] { startId(tree), "", "0" });
+                int seen = 0;
+                while (!todo.isEmpty() && seen < 2000) {
+                    stepAside();
+                    String[] d = todo.poll(); seen++;
+                    int depth = Integer.parseInt(d[2]);
+                    java.util.List<String[]> subs = new java.util.ArrayList<>(); boolean isGame = false; long mtime = 0;
+                    try (Cursor c = cr.query(DocumentsContract.buildChildDocumentsUriUsingTree(tree, d[0]), cols, null, null, null)) {
+                        if (c == null && seen == 1) throw new IOException("The folder can't be reached");
+                        if (c == null) continue;
+                        while (c.moveToNext()) {
+                            String id = c.getString(0), name = c.getString(1), mime = c.getString(2);
+                            if (name == null || name.startsWith(".") || !DocumentsContract.Document.MIME_TYPE_DIR.equals(mime)) continue;
+                            if (marks.contains(name.toLowerCase(Locale.ROOT))) { isGame = true; if (!c.isNull(3)) mtime = Math.max(mtime, c.getLong(3)); }
+                            else if (!SKIP_DIRS.contains(name.toLowerCase(Locale.ROOT))) subs.add(new String[] { id, name, String.valueOf(depth + 1) });
+                        }
+                    }
+                    if (isGame && depth > 0) {
+                        JSObject f = new JSObject();
+                        f.put("name", d[1]); f.put("docId", d[0]); f.put("uri", DocumentsContract.buildDocumentUriUsingTree(tree, d[0]).toString()); f.put("mtime", mtime);
+                        out.put(f);
+                    } else if (depth < maxDepth) todo.addAll(subs);
+                }
+                JSObject r = new JSObject(); r.put("dirs", out); call.resolve(r);
+            } catch (Exception e) { call.reject("Couldn't read that folder: " + e.getMessage()); }
+        });
+    }
+
     // A folder inside a picked one is addressed as ".../tree/<picked>/document/<sub folder>": Android's permission for the
     // picked folder covers everything under it, so one pick of the main ROMs folder is enough for every console in it.
     // → the folder to start from: that sub folder's id, or the picked folder itself

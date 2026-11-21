@@ -54,6 +54,12 @@
     pceemu: { name: 'PCE.emu', packages: ['com.PceEmu'], launch: { activity: ['com.imagine.BaseActivity'], data: 'doc' } },
     neoemu: { name: 'NEO.emu', packages: ['com.explusalpha.NeoEmu'], launch: { activity: ['com.imagine.BaseActivity'], data: 'doc' } },
     mame4d: { name: 'MAME4droid', packages: ['com.seleuco.mame4d2024', 'com.seleuco.mame4droid'], launch: { activity: ['com.seleuco.mame4droid.MAME4droid'], action: VIEW, data: 'doc' } },
+    // (fork) native Switch ports: started for one game through their frontend entry (peanuts LAUNCHERS.md / FRONTENDS.md):
+    // the extra "game" = the game's folder or file path, explicit component, no intent filter needed
+    peanuts: { name: 'Peanuts Native', packages: ['dev.nxnative.android.peanuts'], match: /^dev\.nxnative\.android\.peanuts/,
+      launch: { activity: ['dev.peanuts.launch.LaunchActivity'], extras: { game: '$PATH' } } },
+    banana: { name: 'Banana Native', packages: ['dev.bananative.android'], match: /^dev\.bananative\.android/,
+      launch: { activity: ['dev.bananative.android.Launch'], extras: { game: '$PATH' } } },
     retroarch: RA
   };
   for (const [id, e] of Object.entries(E)) e.id = id;
@@ -63,7 +69,7 @@
     sys('gc', 'GameCube', ['dolphin'], [], ['rvz', 'iso', 'gcm', 'gcz', 'ciso', 'wia', 'dol', 'elf', 'm3u']),
     sys('wii', 'Wii', ['dolphin'], [], ['rvz', 'iso', 'wbfs', 'wia', 'gcz', 'ciso', 'wad', 'm3u']),
     sys('wiiu', 'Wii U', ['cemu'], [], ['wua', 'wud', 'wux', 'rpx', 'wuhb', 'elf']),
-    sys('sw', 'Switch', ['eden'], [], ['nsp', 'xci', 'nro']),
+    sys('sw', 'Switch', ['eden'], [], ['nsp', 'xci', 'nro', 'nup']),
     sys('n3ds', '3DS', ['azahar'], ['citra'], ['3ds', 'cci', 'cxi', '3dsx', 'app', 'z3dsx', 'zcci', 'zcxi']),
     sys('nds', 'DS', ['melonds', 'drastic', 'retroarch'], ['melondsds', 'melonds', 'desmume'], ['nds', 'zip', '7z']),
     sys('ps2', 'PS2', ['nethersx2', 'armsx2', 'play'], [], ['iso', 'chd', 'bin', 'cso', 'zso', 'gz', 'm3u', 'elf']),

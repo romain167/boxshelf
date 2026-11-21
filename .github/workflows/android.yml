@@ -1,0 +1,45 @@
+# Fork build (romain167): builds the Boxshelf APK for the AYN Thor on every push, no device test.
+# Download: Actions -> "Android APK" -> latest run -> Artifacts -> Boxshelf-thor
+name: Android APK
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: android-app/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Install Capacitor
+        working-directory: android-app
+        run: npm ci --no-audit --no-fund
+      - name: Copy the shared UI into the Android app
+        working-directory: android-app
+        run: npm run sync
+      - name: Build the APK
+        working-directory: android-app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Name the APK
+        run: |
+          mkdir -p out
+          V=$(node -p "require('./android-app/package.json').version")
+          cp android-app/android/app/build/outputs/apk/debug/app-debug.apk "out/Boxshelf-thor-${V}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Boxshelf-thor
+          path: out/*.apk
+          retention-days: 30

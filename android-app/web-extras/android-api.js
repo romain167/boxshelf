@@ -102,6 +102,12 @@
   const ytOff = () => { const f = document.getElementById('bsYt'); if (f) { f.src = 'about:blank'; f.remove(); } };
   const ytPlace = (f, r, show) => { f.style.left = r.x + 'px'; f.style.top = r.y + 'px'; f.style.width = r.w + 'px'; f.style.height = r.h + 'px'; f.style.visibility = show ? 'visible' : 'hidden'; };
   const vkey = n => String(n || '').toLowerCase().replace(/\.[a-z0-9]{2,4}$/, '').replace(/\s*[([][^)\]]*[)\]]/g, '').replace(/-(video|01|02|trailer)$/i, '').replace(/[^a-z0-9]+/g, '');
+  // (fork) which native port starts a Switch game by default: a .nup or a game folder goes to Peanuts Native, or Banana
+  // Native when its path says "banana"; a .nsp / .xci under a folder named for one of them goes there too; the rest is Eden
+  // (Details → Emulator still picks another app for one game)
+  function nativeEmuOf(f) { const p = String(f.path || '').toLowerCase(), banana = /banana/.test(p), peanuts = /peanut/.test(p);
+    if (f.isDir || f.ext === 'nup') return banana ? 'banana' : 'peanuts';
+    return banana ? 'banana' : peanuts ? 'peanuts' : ''; }
   // failed (optional): the folders that couldn't be read this time (no permission, SD card out) are added to it
   async function scanSystem(s, c, failed) {
     const files = [], vmap = new Map();
@@ -113,6 +119,10 @@
           if (!vmap.has('=' + base)) vmap.set('=' + base, v); const k = vkey(f.name); if (k && !vmap.has(k)) vmap.set(k, v); continue; }
         files.push({ ...f, path: idToPath(f.docId), tree: uri }); } }
       catch (e) { log('scan failed', dir, e && e.message); if (failed) failed.push({ dir, uri }); }
+      // (fork) Switch games kept as unpacked folders (Peanuts Native / Banana Native dumps): one box per game folder
+      if (s.id === 'sw' && N.listGameDirs) { try { const r = await N.listGameDirs({ uri, depth: 3 });
+        for (const d of r.dirs || []) files.push({ name: d.name, docId: d.docId, dir: '', ext: 'dir', uri: d.uri, size: 0, mtime: d.mtime || 0, path: idToPath(d.docId), tree: uri, isDir: true }); }
+        catch (e) { log('native folders', dir, e && e.message); } }
     }
     vids.set(s.id, vmap);
     // a .cue / .gdi / .m3u owns the track and disc files beside it; those never get boxes of their own
@@ -123,12 +133,12 @@
       for (const g of list) if (g !== f && owned.includes(g.ext) && (f.ext !== 'm3u' || g.name.toLowerCase().startsWith(stem.replace(/\s*\(dis[ck] \d+\)/i, '').slice(0, 12)))) hidden.add(g); }
     const games = new Map();
     for (const f of files) {
-      if (hidden.has(f) || !s.extensions.includes(f.ext) || T.skipFile(f.name)) continue;
-      const info = T.cleanTitle(f.name, { updateWords: s.id === 'sw' }); if (info.extra) continue; // (beta.10: the bare word rule is the Switch's only)
+      if (hidden.has(f) || (!f.isDir && (!s.extensions.includes(f.ext) || T.skipFile(f.name)))) continue;
+      const info = T.cleanTitle(f.isDir ? f.name + '.dir' : f.name, { updateWords: s.id === 'sw' }); if (info.extra) continue; // (beta.10: the bare word rule is the Switch's only)
       const key = info.title.toLowerCase() + '|' + (info.region || ''), prev = games.get(key);
       if (prev) { prev.discs.push(f.path); if ((info.disc || 1) >= (prev.disc || 1)) continue; }
       games.set(key, { kind: 'rom', id: s.id + ':' + f.path, title: info.title, region: info.region, disc: info.disc, file: f.path, uri: f.uri, ext: f.ext,
-        sizeBytes: f.size || 0, added: f.mtime || 0, art: {}, romTree: f.tree, discs: prev ? prev.discs : [f.path] });
+        sizeBytes: f.size || 0, added: f.mtime || 0, art: {}, romTree: f.tree, discs: prev ? prev.discs : [f.path], nativeEmu: s.id === 'sw' ? nativeEmuOf(f) : '' });
     }
     // (beta.10) Details → Rename (renameGame): a game's own name, kept as the PC keeps it (config.games["<console>:<file>"].title); fileTitle keeps the scanned one
     const own = (st.config && st.config.games) || {};
@@ -213,6 +223,8 @@
     const own = (game && (st.config.games || {})[systemId + ':' + game.file]) || {};
     let pkg = pkgOf(own.emulator); if (pkg && !(await apps()).has(pkg)) { log('launch: this game\'s own emulator is gone, using the shelf\'s'); pkg = null; }
     const ownCore = pkg && own.core && s && s.cores.includes(own.core) ? own.core : '';
+    if (!pkg && game && game.nativeEmu) { pkg = findInstalled(game.nativeEmu, await apps());
+      if (!pkg) log('launch: ' + game.nativeEmu + ' is not installed, using the shelf\'s emulator'); }
     if (!pkg) pkg = pkgOf(c.emulator);
     if (!pkg) { const inst = await apps(); for (const id of s.emus) { pkg = findInstalled(id, inst); if (pkg) break; } }
     if (!pkg) throw new Error(`No emulator for ${s ? s.name : systemId} is installed. Pick one in Settings → ${s ? s.name : 'Consoles'}.`);
@@ -230,11 +242,11 @@
       if (spec.data === 'doc') req.data = ctx.doc; else if (spec.data === 'path') req.data = ctx.path;
       if (spec.extras) { req.extras = {}; for (const [k, v] of Object.entries(spec.extras)) req.extras[k] = sub(v, ctx); }
       req.flags = spec.flags || [];
-      if (ctx.doc) req.grant.push(ctx.doc);
+      if (ctx.doc && !(e && /^(peanuts|banana)$/.test(e.id))) req.grant.push(ctx.doc); // (fork) a native port is handed a path, no document
     }
     // (beta.12, the Thor) a game that doesn't use a second screen leaves Boxshelf's bottom screen up while it runs; DS,
     // 3DS and Wii U games (their emulators draw on it) get the bottom screen as before
-    req.keepBottom = !/^(nds|n3ds|wiiu)$/.test(String(systemId || ''));
+    req.keepBottom = !/^(nds|n3ds|wiiu)$/.test(String(systemId || '')) && !(e && /^(peanuts|banana)$/.test(e.id)); // (fork) the ports draw their companion on the bottom screen
     log('launch', JSON.stringify(req));
     running = { systemId, file: game && game.file, id: game && game.id, at: Date.now() };
     try { await N.launch(req); } catch (err) { running = null; throw new Error((err && err.message) || String(err)); }
