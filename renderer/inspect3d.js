@@ -516,13 +516,15 @@ let spineMat = null, standInSpine = null;
       const pos = screen.geometry.attributes.position, v = new THREE.Vector3(), pts = [];
       for (let i = 0; i < pos.count; i++) pts.push(v.fromBufferAttribute(pos, i).applyMatrix4(screen.matrixWorld).clone());
       const c = pts.reduce((a, b) => a.add(b), new THREE.Vector3()).multiplyScalar(1 / pts.length);
-      // the screen's frame from its corners (the screen is a thin box): principal axes of the points. Longest = "right",
-      // thinnest = the normal (power iteration on the covariance, and on trace·I - covariance for the thinnest)
-      const cov = [[0,0,0],[0,0,0],[0,0,0]]; pts.forEach(q => { const d = q.clone().sub(c).toArray(); for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) cov[a][b] += d[a] * d[b]; });
-      const tr = cov[0][0] + cov[1][1] + cov[2][2], mul = (Mx, a) => [0, 1, 2].map(r => Mx[r][0] * a[0] + Mx[r][1] * a[1] + Mx[r][2] * a[2]);
-      const iter = Mx => { let a = [.577, .577, .577]; for (let k = 0; k < 200; k++) { const b = mul(Mx, a), L = Math.hypot(...b) || 1; a = b.map(v => v / L); } return new THREE.Vector3(...a); };
-      let right = iter(cov); if (right.x < 0) right.negate();
-      let normal = iter(cov.map((row, r) => row.map((v, k) => (r === k ? tr : 0) - v)));
+      // the screen's normal: its triangles' normals, area-weighted; "right": the quad's long direction in that plane
+      const idx = screen.geometry.index, nrm = new THREE.Vector3(), A = new THREE.Vector3(), B2 = new THREE.Vector3(), C2 = new THREE.Vector3();
+      const tri = k => idx ? idx.getX(k) : k, nT = idx ? idx.count : pos.count;
+      for (let k = 0; k + 2 < nT; k += 3) { A.copy(pts[tri(k)]); B2.copy(pts[tri(k + 1)]).sub(A); C2.copy(pts[tri(k + 2)]).sub(A); nrm.add(new THREE.Vector3().crossVectors(B2, C2)); }
+      let normal = nrm.normalize();
+      let right = null, best = -1; for (const q of pts) for (const r2 of pts) { const d = r2.clone().sub(q); d.sub(normal.clone().multiplyScalar(d.dot(normal))); const L = d.length(); if (L > best) { best = L; right = d; } }
+      // the diagonal is the longest: turn it onto the long edge (the edge most aligned with the model's horizontal)
+      const cands = []; for (const q of pts) for (const r2 of pts) { const d = r2.clone().sub(q); d.sub(normal.clone().multiplyScalar(d.dot(normal))); if (d.length() > best * .3) cands.push(d.normalize()); }
+      right = cands.reduce((a, b) => Math.abs(b.x) > Math.abs(a.x) ? b : a, cands[0]).clone(); if (right.x < 0) right.negate();
       // which way is "out": the screen sits in front of the body, so the body's centre is behind it
       const body = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
       if (body.clone().sub(c).dot(normal) > 0) normal.negate();
@@ -539,22 +541,9 @@ let spineMat = null, standInSpine = null;
         for (let i = 0; i < g2.attributes.position.count; i++) { const q = pts[i].clone().sub(c); uv[2 * i] = q.dot(right) / W + .5; uv[2 * i + 1] = q.dot(up) / Hs + .5; }
         g2.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); screen.geometry = g2; }
       const scrMat = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }); screen.material = scrMat;
-      // the size of things in this frame. The tablet is what lies between the Joy-Con: the slot is in its top edge, half-way
-      // through its thickness. (fork) Joy-Con in the classic neon blue (left) and neon red (right).
-      pivot.updateMatrixWorld(true); const bb = new THREE.Box3(), tab = new THREE.Box3(), half = .5 + .02, jc = [];
-      root.traverse(n => { if (!n.isMesh) return; const b = new THREE.Box3().setFromObject(n), mc = b.getCenter(new THREE.Vector3()); bb.union(b);
-        const side = b.min.x < -half ? -1 : b.max.x > half ? 1 : 0; // wholly left / right of the screen edge (+ a bit): a Joy-Con part
-        if (b.max.x < -half + .02 || b.min.x > half - .02) { const m = n.material, base = new THREE.Color().copy(m.color || new THREE.Color(1, 1, 1));
-          if (base.r + base.g + base.b > 1.5) { const sz = b.getSize(new THREE.Vector3()); jc.push({ n, left: mc.x < 0, vol: sz.x * sz.y * Math.max(sz.z, 1e-4) }); } }
-        else if (side === 0) tab.union(b); });
-      // the shell of each Joy-Con (its biggest light part) takes the colour; its light buttons and sticks go black, as on the real ones
-      [true, false].forEach(left => { const parts = jc.filter(p => p.left === left); if (!parts.length) return; const big = Math.max(...parts.map(p => p.vol));
-        parts.forEach(p => { const o = p.n.material.clone();
-          if (p.vol >= big * .5) { o.color = new THREE.Color(left ? 0x0ab9e6 : 0xff3c28).convertSRGBToLinear(); o.roughness = Math.max(.35, o.roughness || 0); }
-          else { o.color = new THREE.Color(0x1c1c20).convertSRGBToLinear(); o.roughness = .45; }
-          p.n.material = o; }); });
-      if (tab.isEmpty()) tab.copy(bb);
-      return { pivot, scrMat, screen, def, top: tab.max.y, zMid: (tab.min.z + tab.max.z) / 2, h: Hs / W };
+      // the size of things in this frame: the top edge (body box in the frame), thickness
+      pivot.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(pivot);
+      return { pivot, scrMat, screen, def, top: bb.max.y, zMid: (bb.min.z + bb.max.z) / 2, h: Hs / W };
     }).catch(e => { console.warn('console model', e); return null; });
     conCache.set(sys, p); return p;
   }
@@ -995,12 +984,9 @@ let spineMat = null, standInSpine = null;
     const Sf = Math.max(visW, visH / C.h) * 1.04;                    // big enough that the screen covers the whole display
     const S = S0 + (Sf - S0) * dv;
     const P = C.pivot; P.visible = inK > 0;
-    // while the card goes in: tipped well back (the top edge and its slot face you) and moved over so the slot is near the
-    // middle, a little closer; then it turns to face you, centred
-    const ins0 = (1 - faceK) * (1 - dv), Sx = S * (1 + .18 * ins0);
-    P.position.set(-C.def.slotX * Sx * .55 * ins0, (-visH * .95) * (1 - inK) - .22 * ins0, .35 * faceK * (1 - dv));
-    P.rotation.set(.16 * ins0 + (1 - inK) * .3, -.42 * ins0, 0);
-    P.scale.setScalar(Sx);
+    P.position.set(0, (-visH * .95) * (1 - inK) + (-.12 * (1 - faceK)) * (1 - dv), (.0 + .35 * faceK) * (1 - dv) + dv * .0);
+    P.rotation.set(.62 * (1 - faceK) * (1 - dv) + (1 - inK) * .3, (-.32 * (1 - faceK)) * (1 - dv), 0);
+    P.scale.setScalar(S);
     // the screen: off, a soft white boot glow, then the game
     const on = cl(2.05, 2.45); C.scrMat.color.setScalar(Math.min(1, on * 1.1)); if (C.scrTex && C.scrMat.map !== C.scrTex && on > 0) { C.scrMat.map = C.scrTex; C.scrMat.needsUpdate = true; }
     // the card: from where the launch put it (this frame) to over the slot, then down into it
@@ -1009,11 +995,11 @@ let spineMat = null, standInSpine = null;
       P.updateMatrixWorld(true); media.updateMatrixWorld(true);
       const md = C.md, cardH = C.def.card[1], k = cardH / Math.max(md.ch, 1e-4);   // card height in the screen-width frame
       const yIn = C.top + cardH * .5 - cardH * .98 * ins, yOver = C.top + cardH * .5 + cardH * .35;
-      const target = new THREE.Matrix4().compose(new THREE.Vector3(C.def.slotX, yIn + (yOver - yIn) * (1 - ins), C.zMid), new THREE.Quaternion(), new THREE.Vector3(k, k, k)); // label to the front, contacts down
+      const target = new THREE.Matrix4().compose(new THREE.Vector3(C.def.slotX, yIn + (yOver - yIn) * (1 - ins), C.zMid), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), new THREE.Vector3(k, k, k));
       target.premultiply(P.matrixWorld);
       const from = media.matrixWorld.clone(), a = new THREE.Vector3(), qa = new THREE.Quaternion(), sa = new THREE.Vector3(), b = new THREE.Vector3(), qb = new THREE.Quaternion(), sb = new THREE.Vector3();
       from.decompose(a, qa, sa); target.decompose(b, qb, sb);
-      a.lerp(b, fly); a.y += Math.sin(Math.PI * fly) * .18 * (1 - ins); a.z += Math.sin(Math.PI * Math.min(1, fly * 1.15)) * .45; // (arcs out in front of the console, never through it) qa.slerp(qb, fly); sa.lerp(sb, fly);
+      a.lerp(b, fly); a.y += Math.sin(Math.PI * fly) * .18 * (1 - ins); qa.slerp(qb, fly); sa.lerp(sb, fly);
       const w = new THREE.Matrix4().compose(a, qa, sa).premultiply(media.parent.matrixWorld.clone().invert());
       w.decompose(media.position, media.quaternion, media.scale);
       media.visible = ins < .999 && dv === 0;
