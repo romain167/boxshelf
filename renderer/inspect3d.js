@@ -499,64 +499,6 @@ let spineMat = null, standInSpine = null;
     for (let i = a == null ? 0 : a; i < (b == null ? uv.count : b); i++) uv.setXY(i, a0 + u0[i * 2] * (a1 - a0), b0 + u0[i * 2 + 1] * (b1 - b0)); uv.needsUpdate = true;
   }
   // how far above the middle the media sits (case heights = 1): a GameCube disc rides high to leave room for the card holder
-  // (fork) LAUNCH CONSOLE: a real console model (models/<sys>.glb) the card goes into. Each model is set up once: its screen
-  // (the mesh whose material is named "screen") gives the frame: centre at the origin, +x right, +y up, +z out of the screen,
-  // screen width 1. Plastics made opaque (glTF transmission costs a whole extra render pass and washed them out), the screen
-  // made a plain lit picture we draw the game onto. slot: where the card goes, in that frame (top edge, right side).
-  const CONSOLES = { sw: { url: 'models/switch.glb', slotX: .43, card: [.135, .2] } };
-  const conCache = new Map();
-  function loadConsole(sys) {
-    const def = CONSOLES[sys]; if (!def || !window.BS3D || !window.BS3D.GLTFLoader) return Promise.resolve(null);
-    if (conCache.has(sys)) return conCache.get(sys);
-    const p = new window.BS3D.GLTFLoader().loadAsync(def.url).then(g => {
-      const THREE = T(), root = g.scene; root.updateMatrixWorld(true);
-      let screen = null; root.traverse(n => { if (n.isMesh && /screen/i.test(n.material && n.material.name || '')) screen = n; });
-      if (!screen) return null;
-      // the screen quad's corners in model space: centre, its two edge directions (the longer is "right"), the normal
-      const pos = screen.geometry.attributes.position, v = new THREE.Vector3(), pts = [];
-      for (let i = 0; i < pos.count; i++) pts.push(v.fromBufferAttribute(pos, i).applyMatrix4(screen.matrixWorld).clone());
-      const c = pts.reduce((a, b) => a.add(b), new THREE.Vector3()).multiplyScalar(1 / pts.length);
-      // the screen's normal: its triangles' normals, area-weighted; "right": the quad's long direction in that plane
-      const idx = screen.geometry.index, nrm = new THREE.Vector3(), A = new THREE.Vector3(), B2 = new THREE.Vector3(), C2 = new THREE.Vector3();
-      const tri = k => idx ? idx.getX(k) : k, nT = idx ? idx.count : pos.count;
-      for (let k = 0; k + 2 < nT; k += 3) { A.copy(pts[tri(k)]); B2.copy(pts[tri(k + 1)]).sub(A); C2.copy(pts[tri(k + 2)]).sub(A); nrm.add(new THREE.Vector3().crossVectors(B2, C2)); }
-      let normal = nrm.normalize();
-      let right = null, best = -1; for (const q of pts) for (const r2 of pts) { const d = r2.clone().sub(q); d.sub(normal.clone().multiplyScalar(d.dot(normal))); const L = d.length(); if (L > best) { best = L; right = d; } }
-      // the diagonal is the longest: turn it onto the long edge (the edge most aligned with the model's horizontal)
-      const cands = []; for (const q of pts) for (const r2 of pts) { const d = r2.clone().sub(q); d.sub(normal.clone().multiplyScalar(d.dot(normal))); if (d.length() > best * .3) cands.push(d.normalize()); }
-      right = cands.reduce((a, b) => Math.abs(b.x) > Math.abs(a.x) ? b : a, cands[0]).clone(); if (right.x < 0) right.negate();
-      // which way is "out": the screen sits in front of the body, so the body's centre is behind it
-      const body = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
-      if (body.clone().sub(c).dot(normal) > 0) normal.negate();
-      let up = new THREE.Vector3().crossVectors(normal, right).normalize();
-      if (up.y < 0) { up.negate(); right.negate(); } // upright: the model's own +y stays up
-      right = new THREE.Vector3().crossVectors(up, normal).normalize();
-      const W = Math.max(...pts.map(q => q.clone().sub(c).dot(right))) * 2;
-      const M = new THREE.Matrix4().makeBasis(right, up, normal).setPosition(c), inv = M.clone().invert(), k = 1 / W;
-      const pivot = new THREE.Group(), holder = new THREE.Group(); holder.add(root); holder.applyMatrix4(new THREE.Matrix4().makeScale(k, k, k).multiply(inv)); pivot.add(holder);
-      root.traverse(n => { if (!n.isMesh) return; const ms = Array.isArray(n.material) ? n.material : [n.material];
-        ms.forEach((m, i) => { if (m.transmission) { const o = m.clone(); o.transmission = 0; o.transparent = /glass/i.test(m.name); if (o.transparent) { o.opacity = .12; o.depthWrite = false; o.roughness = .02; } if (Array.isArray(n.material)) n.material[i] = o; else n.material = o; } }); });
-      const Hs = Math.max(...pts.map(q => Math.abs(q.clone().sub(c).dot(up)))) * 2;
-      { const g2 = screen.geometry.clone(), uv = new Float32Array(g2.attributes.position.count * 2); // the picture laid straight across the screen
-        for (let i = 0; i < g2.attributes.position.count; i++) { const q = pts[i].clone().sub(c); uv[2 * i] = q.dot(right) / W + .5; uv[2 * i + 1] = q.dot(up) / Hs + .5; }
-        g2.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); screen.geometry = g2; }
-      const scrMat = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }); screen.material = scrMat;
-      // the size of things in this frame: the top edge (body box in the frame), thickness
-      pivot.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(pivot);
-      return { pivot, scrMat, screen, def, top: bb.max.y, zMid: (bb.min.z + bb.max.z) / 2, h: Hs / W };
-    }).catch(e => { console.warn('console model', e); return null; });
-    conCache.set(sys, p); return p;
-  }
-  // the game on the console's screen: its wide art when there is one, otherwise the cover over a blurred copy of itself
-  function screenCanvas(im) {
-    const W = 1280, H = 720, c = document.createElement('canvas'); c.width = W; c.height = H; const x = c.getContext('2d');
-    const iw = im.naturalWidth || im.width, ih = im.naturalHeight || im.height;
-    if (iw / ih > 1.4) { const k = Math.max(W / iw, H / ih); x.drawImage(im, W / 2 - iw * k / 2, H / 2 - ih * k / 2, iw * k, ih * k); return c; }
-    try { x.filter = 'blur(28px) saturate(1.3) brightness(.7)'; } catch {}
-    const k0 = Math.max(W / iw, H / ih) * 1.15; x.drawImage(im, W / 2 - iw * k0 / 2, H / 2 - ih * k0 / 2, iw * k0, ih * k0); x.filter = 'none';
-    const k = H * .86 / ih; x.shadowColor = 'rgba(0,0,0,.55)'; x.shadowBlur = 40; x.drawImage(im, W / 2 - iw * k / 2, H * .07, iw * k, ih * k);
-    return c;
-  }
   // (fork) each console's card / cartridge plastic
   const CART_SHELL = { sw: 0x2a2b30, sw2: 0xb8121e, n3ds: 0xd6d8de, nds: 0x3b3c42, n64: 0x8f9299, snes: 0x9a9ba2, nes: 0x8a8b90, gb: 0x8d8e93, gbc: 0x8d8e93, gba: 0x4c4e55 };
   const DISC_WORD = { wii: 'Wii', wiiu: 'Wii U', gc: 'NINTENDO GAMECUBE', ps2: 'PlayStation 2', ps3: 'PS3', ps4: 'PS4', ps5: 'PS5', psx: 'PlayStation', psp: 'UMD', x360: 'XBOX 360', xbox: 'XBOX', dreamcast: 'DREAMCAST', saturn: 'SEGA SATURN' };
@@ -969,42 +911,7 @@ let spineMat = null, standInSpine = null;
       const s = st.zoom * (leaving ? 1 + m * .35 : .8 + .2 * (1 - m)); rot.scale.set(s, s, s);
       rot.position.set(st.px * perPx, -st.py * perPx - m * .12, leaving ? -back : back);
     }
-    if (st.con) conFrame(now);
     renderer.render(scene, camera);
-  }
-  // (fork) the console part of a launch, timed from when the card came out (st.l0), in seconds:
-  //   .25-1.15 the console comes up into view, tipped so its top edge shows; 1.0-1.65 the card flies over the slot, upright,
-  //   label to the back; 1.65-2.0 it slides in; 2.0-2.5 the console turns to face you and the screen comes on with the game;
-  //   from dive(): the screen grows until it is the whole display.
-  function conFrame(now) {
-    const THREE = T(), C = st.con, t = (now - st.l0) / 1000, E = easeIO, cl = (a, b) => Math.max(0, Math.min(1, (t - a) / (b - a)));
-    const visH = 2 * 3.9 * Math.tan(camera.fov * DEG / 2), visW = visH * camera.aspect;
-    const S0 = Math.min(visW * .52, visH * .62 / C.h);              // the console's screen width while it's on show
-    const inK = E(cl(.25, 1.15)), faceK = E(cl(2.0, 2.5)), dv = st.dive0 ? E(Math.min(1, (now - st.dive0) / 650)) : 0;
-    const Sf = Math.max(visW, visH / C.h) * 1.04;                    // big enough that the screen covers the whole display
-    const S = S0 + (Sf - S0) * dv;
-    const P = C.pivot; P.visible = inK > 0;
-    P.position.set(0, (-visH * .95) * (1 - inK) + (-.12 * (1 - faceK)) * (1 - dv), (.0 + .35 * faceK) * (1 - dv) + dv * .0);
-    P.rotation.set(.62 * (1 - faceK) * (1 - dv) + (1 - inK) * .3, (-.32 * (1 - faceK)) * (1 - dv), 0);
-    P.scale.setScalar(S);
-    // the screen: off, a soft white boot glow, then the game
-    const on = cl(2.05, 2.45); C.scrMat.color.setScalar(Math.min(1, on * 1.1)); if (C.scrTex && C.scrMat.map !== C.scrTex && on > 0) { C.scrMat.map = C.scrTex; C.scrMat.needsUpdate = true; }
-    // the card: from where the launch put it (this frame) to over the slot, then down into it
-    const fly = E(cl(1.0, 1.65)), ins = E(cl(1.65, 2.0));
-    if (fly > 0 && media) {
-      P.updateMatrixWorld(true); media.updateMatrixWorld(true);
-      const md = C.md, cardH = C.def.card[1], k = cardH / Math.max(md.ch, 1e-4);   // card height in the screen-width frame
-      const yIn = C.top + cardH * .5 - cardH * .98 * ins, yOver = C.top + cardH * .5 + cardH * .35;
-      const target = new THREE.Matrix4().compose(new THREE.Vector3(C.def.slotX, yIn + (yOver - yIn) * (1 - ins), C.zMid), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), new THREE.Vector3(k, k, k));
-      target.premultiply(P.matrixWorld);
-      const from = media.matrixWorld.clone(), a = new THREE.Vector3(), qa = new THREE.Quaternion(), sa = new THREE.Vector3(), b = new THREE.Vector3(), qb = new THREE.Quaternion(), sb = new THREE.Vector3();
-      from.decompose(a, qa, sa); target.decompose(b, qb, sb);
-      a.lerp(b, fly); a.y += Math.sin(Math.PI * fly) * .18 * (1 - ins); qa.slerp(qb, fly); sa.lerp(sb, fly);
-      const w = new THREE.Matrix4().compose(a, qa, sa).premultiply(media.parent.matrixWorld.clone().invert());
-      w.decompose(media.position, media.quaternion, media.scale);
-      media.visible = ins < .999 && dv === 0;
-      const bm = media.userData.blurMat; if (bm) bm.opacity = 0;
-    }
   }
   const easeIn3 = t => t * t * t;
   const easeIO = t => t <= 0 ? 0 : t >= 1 ? 1 : (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -1090,20 +997,7 @@ let spineMat = null, standInSpine = null;
   function setPose(rx, ry, zoom, px, py, busy, flip, base) { if (busy) lastMove = performance.now(); st.rx = rx; st.ry = ry; st.zoom = zoom; st.px = px; st.py = py; st.flip = flip || 0; st.own = base != null; st.base = base || 0; } // (base null: Windows, the disc turns with the case as before)
   function setState(n) { st.state = n; applyState(false); }
   function dive() { if (st.launch) st.dive0 = performance.now(); }
-  // (fork) launch(on, withConsole): withConsole = this game's console has a model (consoleReady): the card goes into it
-  function consoleReady(sys) { const p = conCache.get(sys); return !!(p && p._v); }
-  function preloadConsole(sys) { const p = loadConsole(sys); if (p && !p._hooked) { p._hooked = true; p.then(v => { p._v = v; }); } return p; }
-  function launch(on, withConsole) {
-    if (st.con) { try { scene.remove(st.con.pivot); } catch {} st.con.scrMat.color.setScalar(0); st.con = null; }
-    if (on && withConsole && cur && cur.kind === 'cart' && media) { const p = conCache.get(cur.sys); const C = p && p._v; if (C) {
-      const lb = localBox(media); st.con = Object.assign(C, { md: { ch: Math.max(1e-4, lb.max.y - lb.min.y) } });
-      C.pivot.visible = false; scene.add(C.pivot);
-      const src = loadTex(cur.hero || cur.front); C.scrTex = null; C.scrMat.map = null; C.scrMat.needsUpdate = true;
-      if (src) src.userData.p.then(ok => { if (!ok || st.con !== C) return; const t = new (T().CanvasTexture)(screenCanvas(src.image)); t.colorSpace = T().SRGBColorSpace; C.scrTex = t; });
-    } }
-    if (!on && media) media.visible = true;
-    st.launch = !!on; st.lv = 0; st.ls = 0; st.tq = 0; st.tqv = 0; st.dive0 = 0; st.l0 = performance.now();
- if (on && active && !raf && renderer) { paused = false; lastT = 0; raf = requestAnimationFrame(frame); } }
+  function launch(on) { st.launch = !!on; st.lv = 0; st.ls = 0; st.tq = 0; st.tqv = 0; st.dive0 = 0; st.l0 = performance.now(); if (on && active && !raf && renderer) { paused = false; lastT = 0; raf = requestAnimationFrame(frame); } }
   function bump() { st.bump = .12; }
   // (beta.12, touch) what's under a finger on the screen: 'manual' (the booklet in the lid), 'disc' (the disc or
   // cartridge), or null (the case itself, or nothing). Whatever is nearest along the line of sight wins, so a case wall in
@@ -1126,7 +1020,7 @@ let spineMat = null, standInSpine = null;
   addEventListener('resize', () => { if (renderer && active) resize(); });
   // the lid's manual, when it arrives late (Boxshelf's own booklet is drawn after the case opens)
   function setManual(url) { const m = built && built.manMat; if (!manualPlane || !m || !url || (cur && cur.manual)) return; const t = loadTex(url); m.map = t; m.color.set(0xffffff); m.needsUpdate = true; if (cur) cur.manual = url; fitManual(); }
-  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, launch, dive, preloadConsole, consoleReady, bump, hitAt, setPaused, isActive: () => active,
+  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, launch, dive, bump, hitAt, setPaused, isActive: () => active,
     busy: () => !paused && (phase === 'out' || phase === 'fade' || phase === 'wait' || phase === 'in'), _st: () => ({ phase, in: st.in, ry: st.ry, rotY: rot ? Math.round(rot.rotation.y / DEG) : null, ready, fade: !!fadeT0, pend: !!pend, op: canvas && canvas.style.opacity, on: !!(canvas && canvas.classList.contains('on')), from: cur && cur.from, standIn: !!standInTex, tok, disc: discPose(), manual: manualXY(), spine: !!(spineM && spineM.parent && spineM.parent.parent), lid: st.lid, lidT: st.lidT, manSlide: st.man || 0, paused, cs: caseInfo }) }; // (beta.11 spine: the printed spine is on the case; beta.14 cs: the case built: its type, booklet, media size, meshes)
   // (test hook) where on the screen the middle of the lid's manual is, in page pixels (null when it isn't drawn)
   function manualXY() { if (!manualPlane || !camera || !canvas) return null; const THREE = T(); scene.updateMatrixWorld(true); const p = manualPlane.getWorldPosition(new THREE.Vector3()).project(camera), r = canvas.getBoundingClientRect();

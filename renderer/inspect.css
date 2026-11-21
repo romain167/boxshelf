@@ -210,9 +210,3 @@ body.reduce-motion .rd-book{transition:none}
 @keyframes unbFlash{0%{opacity:0}70%{opacity:1}100%{opacity:1;filter:brightness(.15)}}
 @keyframes unbOut{to{opacity:0;transform:translateY(12px)}}
 body.reduce-motion .inspect.unboxing .isp-glow{animation:fadein .2s forwards}
-/* (fork) diving into a console's own screen: the screen already fills the display, so a short fade to black */
-.inspect.unboxing.dive.dive-con .isp-flash{background:#000;animation:unbBlack .35s .55s ease-in forwards}
-.inspect.unboxing.dive.dive-con .isp-glow,.inspect.unboxing.dive.dive-con .isp-fx{animation:unbOut .4s forwards}
-@keyframes unbBlack{to{opacity:1}}
-/* the console's screen shows the game: the name and line under it step aside once the console comes up */
-.inspect.unboxing.con .isp-launch{animation:none;opacity:0}
