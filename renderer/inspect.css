@@ -241,7 +241,7 @@ body.reduce-motion .inspect.unboxing .isp-glow{animation:fadein .2s forwards}
 /* the opening's other timings, at the chosen speed */
 .inspect.unboxing .isp-launch{animation-duration:calc(.5s / var(--spd,1));animation-delay:calc(1.75s / var(--spd,1))}
 .inspect.unboxing .isp-glow{animation:unbGlowIn calc(.8s / var(--spd,1)) calc(1.35s / var(--spd,1)) cubic-bezier(.2,.7,.2,1) forwards,unbGlow 2.4s calc(2.15s / var(--spd,1)) ease-in-out infinite alternate}
-.inspect.unboxing .isp-lbar i{animation:unbLoad calc(3.3s / var(--spd,1)) calc(1.85s / var(--spd,1)) cubic-bezier(.4,0,.2,1) forwards}
+.inspect.unboxing .isp-lbar i{animation:unbLoad calc(3.7s / var(--spd,1)) calc(1.85s / var(--spd,1)) cubic-bezier(.4,0,.2,1) forwards}
 /* (fork) opening, v3 finish. A stage light behind the media while it faces you; a horizontal light streak (anamorphic
    flare) as it turns over; the name in large type that settles as it appears; a faint film grain; the end curtain opens
    on the game's own art. Opacity / transform only, so the Thor's GPU barely notices. */

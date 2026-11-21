@@ -882,14 +882,15 @@ let spineMat = null, standInSpine = null;
         // wobbles on its hub while slow, steadier as it gets up to speed (as a real disc does). It drifts and bobs a little.
         const flipK = reduce ? 1 : Math.min(1, tt / 1.4), flip = (1 - Math.cos(Math.PI * flipK)) / 2 * Math.PI * 2;
         const tgt = tt < .85 ? -.12 : -.3; // (only tipped a little: the game on its label stays easy to see) st.tqv = (st.tqv || 0) + ((tgt - (st.tq || 0)) * 34 - (st.tqv || 0) * 7.5) * dt; st.tq = (st.tq || 0) + st.tqv * dt;
-        const motor = tt < .6 ? 0 : 4.2 + Math.sin(tt * 3.1) * .35 + Math.sin(tt * 7.7) * .15; // (a slow turn, not a blur: you can read it)
-        st.lv = sm(st.lv || 0, reduce ? 0 : motor, 1 - Math.exp(-dt * (tt < 1.4 ? .8 : 1.3))); st.ls = (st.ls || 0) + dt * st.lv;
+        const ramp = Math.max(0, Math.min(1, (tt - 1.6) / 1.3)); // (fork) a slow readable turn first, then the drive spins it up, faster and faster, until the game starts
+        const motor = tt < .6 ? 0 : 4.2 * Math.pow(10, Math.pow(ramp, 1.5)) + Math.sin(tt * 3.1) * .35 * (1 - ramp) + Math.sin(tt * 7.7) * .15;
+        st.lv = sm(st.lv || 0, reduce ? 0 : motor, 1 - Math.exp(-dt * (tt < 1.4 ? .8 : ramp > 0 ? 4 : 1.3))); st.ls = (st.ls || 0) + dt * st.lv;
         const vk = Math.min(1, st.lv / 4.2), amp = .05 * (1 - vk) + .01, ph = st.ls * .11 + tt * 2.3;
         media.rotation.z += st.ls;
         media.rotation.y += flip + Math.cos(ph) * amp * ew;
         media.rotation.x += st.tq + Math.sin(ph) * amp * ew;
         media.position.y += .035 * ew + Math.sin(tt * 1.3) * .012 * ew; media.position.x += Math.sin(tt * .85 + .4) * .01 * ew;
-        const bm = media.userData.blurMat; if (bm) bm.opacity = 0; // (no smear at this speed)
+        const bm = media.userData.blurMat; if (bm) bm.opacity = Math.max(0, Math.min(.92, (st.lv - 7) / 16)); // (the print smears into rings as it gets up to speed)
       } else if (!reduce) {
         const turn = easeIO(Math.min(1, tt / 1.9)) * Math.PI * 2, sway = easeIO(Math.max(0, Math.min(1, (tt - 1.5) / 1.0)));
         media.rotation.y += turn + Math.sin(tt * 1.15) * .12 * sway; media.rotation.x += -.12 * ew + Math.sin(tt * 1.4 + 1) * .07 * sway;
@@ -928,7 +929,9 @@ let spineMat = null, standInSpine = null;
     const reduce = document.body.classList.contains('reduce-motion');
     if (!reduce) { const w = E(c01(t / 1.4)), a = (1 - Math.cos(t * .42)) * .11 * w - .02 * w, z = 3.9 - .42 * E(c01(t / 3.6)); camera.position.set(Math.sin(a) * z, .05 * (1 - Math.cos(t * .5)) * w, Math.cos(a) * z); camera.lookAt(0, 0, 0); } // (starts from rest: no jolt on the first frame)
     if (lights) { lights.key.position.set(2.6 - 4.2 * E(c01((t - .1) / 1.4)), 3, 4); const ft = Math.max(0, ((now - (st.l0 || now)) / 1000 * (st.spd || 1)) - .55);
-      lights.rim.intensity = .55 + (st.launch && cur && cur.kind !== 'cart' ? 1.3 * Math.sin(Math.PI * c01(ft / 1.15)) : 0); }
+      const spin = st.launch && cur && cur.kind !== 'cart' ? c01(((st.lv || 0) - 4.2) / 38) : 0;
+      lights.rim.intensity = .55 + (st.launch && cur && cur.kind !== 'cart' ? 1.3 * Math.sin(Math.PI * c01(ft / 1.4)) + 2.2 * spin : 0);
+      if (spin > .3 && !reduce && !st.dive0) { const k = (spin - .3) * .006; camera.position.x += (Math.random() - .5) * k; camera.position.y += (Math.random() - .5) * k; } } // (a faint hum of the drive at full speed)
     if (shadow && media) { const on = st.launch ? E(c01((((now - (st.l0 || now)) / 1000) * (st.spd || 1) - .4) / .6)) : 0; shadow.visible = on > .01;
       if (shadow.visible) { media.updateMatrixWorld(true); const p = new (T().Vector3)().setFromMatrixPosition(media.matrixWorld), sc = new (T().Vector3)().setFromMatrixScale(media.matrixWorld);
         const b = localBox(media), sz = Math.max(b.max.x - b.min.x, b.max.y - b.min.y) * sc.x; shadow.position.set(p.x + .04, p.y - sz * .08, p.z - .35); shadow.scale.set(sz * 1.5, sz * 1.5, 1); shadow.material.opacity = .55 * on * (st.dive0 ? 1 - Math.min(1, (now - st.dive0) / 400) : 1); } }
@@ -941,6 +944,7 @@ let spineMat = null, standInSpine = null;
   // (fork) a launch is lighter to draw, set before its case is built (so nothing recompiles mid-animation): the screen's own
   // pixels (no supersampling) and no real glass on the disc (transmission draws the whole scene a second time each frame)
   let launchLite = false;
+  function speed() { return st.launch && cur && cur.kind !== 'cart' ? Math.max(0, Math.min(1, ((st.lv || 0) - 4.2) / 38)) : 0; } // (0..1, for the particles' swirl)
   function prepLaunch(on) { launchLite = !!on; if (renderer && active) resize(); }
   function cine(on, spd) {
     st.cine0 = on ? performance.now() : 0; st.spd = spd || 1;
@@ -1054,7 +1058,7 @@ let spineMat = null, standInSpine = null;
   addEventListener('resize', () => { if (renderer && active) resize(); });
   // the lid's manual, when it arrives late (Boxshelf's own booklet is drawn after the case opens)
   function setManual(url) { const m = built && built.manMat; if (!manualPlane || !m || !url || (cur && cur.manual)) return; const t = loadTex(url); m.map = t; m.color.set(0xffffff); m.needsUpdate = true; if (cur) cur.manual = url; fitManual(); }
-  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, launch, dive, cine, prepLaunch, bump, hitAt, setPaused, isActive: () => active,
+  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, launch, dive, cine, prepLaunch, speed, bump, hitAt, setPaused, isActive: () => active,
     busy: () => !paused && (phase === 'out' || phase === 'fade' || phase === 'wait' || phase === 'in'), _st: () => ({ phase, in: st.in, ry: st.ry, rotY: rot ? Math.round(rot.rotation.y / DEG) : null, ready, fade: !!fadeT0, pend: !!pend, op: canvas && canvas.style.opacity, on: !!(canvas && canvas.classList.contains('on')), from: cur && cur.from, standIn: !!standInTex, tok, disc: discPose(), manual: manualXY(), spine: !!(spineM && spineM.parent && spineM.parent.parent), lid: st.lid, lidT: st.lidT, manSlide: st.man || 0, paused, cs: caseInfo }) }; // (beta.11 spine: the printed spine is on the case; beta.14 cs: the case built: its type, booklet, media size, meshes)
   // (test hook) where on the screen the middle of the lid's manual is, in page pixels (null when it isn't drawn)
   function manualXY() { if (!manualPlane || !camera || !canvas) return null; const THREE = T(); scene.updateMatrixWorld(true); const p = manualPlane.getWorldPosition(new THREE.Vector3()).project(camera), r = canvas.getBoundingClientRect();

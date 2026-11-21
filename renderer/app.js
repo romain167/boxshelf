@@ -2153,7 +2153,9 @@ function unboxFx(on,col){const cv=$("ispFx");cancelAnimationFrame(unboxFxRaf);un
   let lt=performance.now(),boost=0;cv._boost=()=>{boost=1};
   const step=t=>{const dt=Math.min(.05,(t-lt)/1000);lt=t;x.clearRect(0,0,W,H);x.globalCompositeOperation=kind==="leaf"?"source-over":"lighter";
     const n=boost?4:(Math.random()<(kind==="leaf"?.25:.7)?1:0);for(let k=0;k<n;k++)if(P.length<(kind==="leaf"?40:90))spawn();
+    const spn=window.Inspect3D&&Inspect3D.speed?Inspect3D.speed():0;if(spn>.05&&P.length<120)for(let k=0;k<Math.round(spn*3);k++)spawn();
     for(let i=P.length-1;i>=0;i--){const p=P[i],age=(t-p.b)/1000;if(age>p.l||p.y>H+20){P.splice(i,1);continue}const sp=1+boost*4;
+      if(spn>.02&&kind!=="leaf"){const dx=p.x-W/2,dy=p.y-H*.47,d=Math.hypot(dx,dy)||1,v=spn*90;p.x+=(-dy/d*v-dx/d*v*.35)*dt;p.y+=(dx/d*v-dy/d*v*.35)*dt} // (pulled round and in by the spinning disc)
       p.x+=(p.vx+(kind==="bubble"?Math.sin(age*3+p.r)*8:kind==="leaf"?Math.sin(age*2+p.r)*12:0))*dt*sp;p.y+=p.vy*dt*sp;p.r+=p.vr*dt;const al=Math.sin(Math.PI*age/p.l)*.75,rad=p.s*(1+boost);
       if(kind==="leaf"){x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=rgba(al*.8);x.beginPath();x.ellipse(0,0,rad*3.2,rad*1.3,0,0,Math.PI*2);x.fill();x.strokeStyle=`rgba(0,0,0,${al*.25})`;x.lineWidth=.5;x.beginPath();x.moveTo(-rad*3,0);x.lineTo(rad*3,0);x.stroke();x.restore()}
       else if(kind==="bubble"){x.strokeStyle=rgba(al*.8);x.lineWidth=.8;x.beginPath();x.arc(p.x,p.y,rad*2.4,0,Math.PI*2);x.stroke();x.fillStyle=`rgba(255,255,255,${al*.5})`;x.beginPath();x.arc(p.x-rad*.8,p.y-rad*.8,rad*.5,0,Math.PI*2);x.fill()}
@@ -2181,12 +2183,13 @@ function runUnbox3D(s,g,done){
   T(620,()=>{Inspect3D.cine&&Inspect3D.cine(true,spd)});                 // the camera starts its slow move, the light its sweep
   T(700,()=>{isp.state=0;ispAdvance()});                                  // the lid / flap opens
   T(1400,()=>{ispAdvance();Inspect3D.launch(true);rumble(.3,.2,70)});     // the media comes up off its hub / out of its slot
-  T(2050,()=>{if(isp.state===2&&!el.classList.contains("cart"))play_("whir")});
+  T(3550,()=>{if(isp.state===2&&!el.classList.contains("cart")){play_("whir");rumble(.15,.1,200)}});   // the drive spins up
+  T(4250,()=>{if(isp.state===2&&!el.classList.contains("cart")){play_("whir");rumble(.3,.25,400)}});
   T(2350,()=>{el.classList.add("streak")});                               // a light streak across as it turns
   T(2900,()=>{el.classList.add("spot")});                                 // the stage light comes up for the face-on moment
-  T(4500,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the light, the curtain opens on the game
-  T(5750,()=>{unboxDone=null;if(done)done()});
-  insertSeatAt=performance.now()+(r?250:5700/spd); // the emulator only starts once the screen has gone over to the game
+  T(4900,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the light, the curtain opens on the game
+  T(6150,()=>{unboxDone=null;if(done)done()});
+  insertSeatAt=performance.now()+(r?250:6100/spd); // the emulator only starts once the screen has gone over to the game
   return true;
 }
 // (fork) a button during the opening: straight to the game (a quick fade to black, then it starts)
