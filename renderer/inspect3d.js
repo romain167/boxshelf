@@ -58,6 +58,7 @@ let spineMat = null, standInSpine = null;
     // the supersampling has a budget (a 1080p screen's 1.5x): on an ultrawide or 4K screen it would draw 11+ million pixels a
     // frame, up to 240 times a second. Never below the screen's own pixels, so the art stays as sharp as the panel shows it
     renderer.setPixelRatio(Math.max(Math.min(pr0, devicePixelRatio || 1), Math.min(pr0, Math.sqrt(1920 * 1080 * 2.25 / Math.max(1, w * h))))); /* with effects on, a little supersampling: the case's glossy edges and light glints stop shimmering as it turns */ // one object on screen: render at the panel's real pixels so the art stays sharp
+    if (launchLite) renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.34)); // (fork) a launch: the screen's own pixels
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     cvRect = canvas.classList.contains('on') ? canvas.getBoundingClientRect() : null;
   }
@@ -694,7 +695,7 @@ let spineMat = null, standInSpine = null;
       media = new THREE.Group();
       // glass: real transmission renders the whole scene once more each frame to see through it; the Handheld level (phones)
       // draws the clear plastic as plain see-through instead, which looks nearly the same on a small screen
-      const glass = !window.Perf || Perf.get().glass !== false;
+      const glass = !launchLite && (!window.Perf || Perf.get().glass !== false);
       const TH = .0045, clear = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: glass ? .35 : .45, roughness: .05, transmission: glass ? .6 : 0, thickness: .01, clearcoat: 1 });
       // (fork) the printed face: the label from .36 R out (a drawn one from the cover, with the console's name round the top,
       // when there's no real disc scan), the bare mirror band inside it, and a blurred copy that shows as the disc spins fast
@@ -847,8 +848,8 @@ let spineMat = null, standInSpine = null;
     // (fork) launching: the media first comes straight up off its hub / out of its slot (lift), and only then does the case
     // slide away behind it (o, on its own clock) and the media turn: nothing ever passes through anything
     const L = st.launch, lt = L ? (now - (st.l0 || now)) / 1000 * (st.spd || 1) : 0;
-    const lift = L ? 1 - Math.pow(1 - Math.min(1, lt / .38), 3) : 0, press = L && cur.kind !== 'cart' ? Math.sin(Math.PI * Math.min(1, lt / .1)) * (lt < .1 ? 1 : 0) : 0;
-    const o = L ? easeIO(Math.max(0, Math.min(1, (lt - .3) / .8))) : easeIO(st.out), mu = media.userData;
+    const lift = L ? 1 - Math.pow(1 - Math.min(1, lt / .45), 3) : 0, press = L && cur.kind !== 'cart' ? Math.sin(Math.PI * Math.min(1, lt / .1)) * (lt < .1 ? 1 : 0) : 0;
+    const o = L ? easeIO(Math.max(0, Math.min(1, (lt - .25) / 1.0))) : easeIO(st.out), mu = media.userData;
     // disc out: the case slides away off-screen and the disc alone sits in your hands; "put back" brings the case in again
     caseG.position.set(-2.6 * o + an.cx, -.3 * o + an.cy, -.6 * o); caseG.rotation.y = 30 * DEG * o; caseG.visible = o < .995;
     media.position.x = ((mu.x0 || 0) + an.mx + an.cx) * (1 - o); media.position.y = ((mu.y0 || 0) + an.my + an.cy) * (1 - o); media.position.z = mu.zIn * (1 - o) + .25 * o + st.bump + (.24 * lift - .006 * press) * (1 - o);
@@ -879,7 +880,7 @@ let spineMat = null, standInSpine = null;
         // (fork, less mechanical) taken off its hub it turns over once in your hand (its rainbow side catches the light), then
         // settles back on a spring to lie tipped like in a drive; the motor spins it up with a little unevenness, and it
         // wobbles on its hub while slow, steadier as it gets up to speed (as a real disc does). It drifts and bobs a little.
-        const flipK = reduce ? 1 : Math.min(1, tt / 1.15), flip = (1 - Math.cos(Math.PI * flipK)) / 2 * Math.PI * 2;
+        const flipK = reduce ? 1 : Math.min(1, tt / 1.4), flip = (1 - Math.cos(Math.PI * flipK)) / 2 * Math.PI * 2;
         const tgt = tt < .85 ? -.12 : -.3; // (only tipped a little: the game on its label stays easy to see) st.tqv = (st.tqv || 0) + ((tgt - (st.tq || 0)) * 34 - (st.tqv || 0) * 7.5) * dt; st.tq = (st.tq || 0) + st.tqv * dt;
         const motor = tt < .6 ? 0 : 4.2 + Math.sin(tt * 3.1) * .35 + Math.sin(tt * 7.7) * .15; // (a slow turn, not a blur: you can read it)
         st.lv = sm(st.lv || 0, reduce ? 0 : motor, 1 - Math.exp(-dt * (tt < 1.4 ? .8 : 1.3))); st.ls = (st.ls || 0) + dt * st.lv;
@@ -890,12 +891,12 @@ let spineMat = null, standInSpine = null;
         media.position.y += .035 * ew + Math.sin(tt * 1.3) * .012 * ew; media.position.x += Math.sin(tt * .85 + .4) * .01 * ew;
         const bm = media.userData.blurMat; if (bm) bm.opacity = 0; // (no smear at this speed)
       } else if (!reduce) {
-        const turn = easeIO(Math.min(1, tt / 1.3)) * Math.PI * 2, sway = easeIO(Math.max(0, Math.min(1, (tt - 1.0) / 1.0)));
+        const turn = easeIO(Math.min(1, tt / 1.9)) * Math.PI * 2, sway = easeIO(Math.max(0, Math.min(1, (tt - 1.5) / 1.0)));
         media.rotation.y += turn + Math.sin(tt * 1.15) * .12 * sway; media.rotation.x += -.12 * ew + Math.sin(tt * 1.4 + 1) * .07 * sway;
         media.position.y += Math.sin(tt * 1.7) * .03 * sway + .07 * ew; // (held a little higher: clear of the name under it)
       }
       const lk = 1 + (cur.kind === 'cart' ? (media.userData.hand > 1 ? .36 : .1) : .5) * o; media.scale.multiplyScalar(lk); // (a small card is held up bigger already; a big cartridge barely)
-      if (st.dive0) { const d = easeIO(Math.min(1, (now - st.dive0) / 700)); media.position.z -= d * .9; media.scale.multiplyScalar(1 - .35 * d); } // (drifts back into the light)
+      if (st.dive0) { const d = easeIO(Math.min(1, (now - st.dive0) / 850)); media.position.z -= d * .9; media.scale.multiplyScalar(1 - .35 * d); } // (drifts back into the light)
     } else if (media.userData.blurMat) media.userData.blurMat.opacity = 0;
     const perPx = (2 * 3.9 * Math.tan(camera.fov * DEG / 2)) / innerHeight;
     const e = easeIO(st.in);
@@ -937,6 +938,10 @@ let spineMat = null, standInSpine = null;
     g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.45, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, opacity: 0 })); m.visible = false; m.renderOrder = -1; return m; }
   // cine(true, speed): the launch's camera / light moves from now; cine(false): all back as they were
+  // (fork) a launch is lighter to draw, set before its case is built (so nothing recompiles mid-animation): the screen's own
+  // pixels (no supersampling) and no real glass on the disc (transmission draws the whole scene a second time each frame)
+  let launchLite = false;
+  function prepLaunch(on) { launchLite = !!on; if (renderer && active) resize(); }
   function cine(on, spd) {
     st.cine0 = on ? performance.now() : 0; st.spd = spd || 1;
     // (the soft shadow plane showed its square edge against the page behind the canvas: left out)
@@ -1049,7 +1054,7 @@ let spineMat = null, standInSpine = null;
   addEventListener('resize', () => { if (renderer && active) resize(); });
   // the lid's manual, when it arrives late (Boxshelf's own booklet is drawn after the case opens)
   function setManual(url) { const m = built && built.manMat; if (!manualPlane || !m || !url || (cur && cur.manual)) return; const t = loadTex(url); m.map = t; m.color.set(0xffffff); m.needsUpdate = true; if (cur) cur.manual = url; fitManual(); }
-  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, launch, dive, cine, bump, hitAt, setPaused, isActive: () => active,
+  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, launch, dive, cine, prepLaunch, bump, hitAt, setPaused, isActive: () => active,
     busy: () => !paused && (phase === 'out' || phase === 'fade' || phase === 'wait' || phase === 'in'), _st: () => ({ phase, in: st.in, ry: st.ry, rotY: rot ? Math.round(rot.rotation.y / DEG) : null, ready, fade: !!fadeT0, pend: !!pend, op: canvas && canvas.style.opacity, on: !!(canvas && canvas.classList.contains('on')), from: cur && cur.from, standIn: !!standInTex, tok, disc: discPose(), manual: manualXY(), spine: !!(spineM && spineM.parent && spineM.parent.parent), lid: st.lid, lidT: st.lidT, manSlide: st.man || 0, paused, cs: caseInfo }) }; // (beta.11 spine: the printed spine is on the case; beta.14 cs: the case built: its type, booklet, media size, meshes)
   // (test hook) where on the screen the middle of the lid's manual is, in page pixels (null when it isn't drawn)
   function manualXY() { if (!manualPlane || !camera || !canvas) return null; const THREE = T(); scene.updateMatrixWorld(true); const p = manualPlane.getWorldPosition(new THREE.Vector3()).project(camera), r = canvas.getBoundingClientRect();

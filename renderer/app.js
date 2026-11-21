@@ -2166,7 +2166,8 @@ function unboxFx(on,col){const cv=$("ispFx");cancelAnimationFrame(unboxFxRaf);un
 // console and game looks like itself. Falls back to the flat version (runUnbox) without WebGL or when the box isn't on screen.
 function runUnbox3D(s,g,done){
   if(!(window.Inspect3D&&Inspect3D.available())||curGame()!==g||!slotPose(slots[sel])||(mode!=="browse"&&mode!=="details"))return false;
-  openInspect();if(mode!=="inspect"||!Inspect3D.isActive()){closeInspect();return false}
+  if(Inspect3D.prepLaunch)Inspect3D.prepLaunch(true); // (lighter to draw: steady frame rate)
+  openInspect();if(mode!=="inspect"||!Inspect3D.isActive()){if(Inspect3D.prepLaunch)Inspect3D.prepLaunch(false);closeInspect();return false}
   mode="launch";const el=$("inspect");el.classList.remove("dive");el.classList.add("unboxing");
   const L=$("ispLaunch");L.querySelector(".l-emu").textContent=`Starting ${nativeName(g)||s.emulatorName||""}`.trim();L.querySelector(".l-title").textContent=g.title;
   const bar=L.querySelector(".isp-lbar i");bar.style.animation="none";void bar.offsetWidth;bar.style.animation="";
@@ -2193,7 +2194,7 @@ let unboxDone=null;
 function unboxSkip(){const el=$("inspect");if(!el.classList.contains("unboxing")||!unboxDone)return false;const d=unboxDone;unboxDone=null;unboxT.forEach(clearTimeout);unboxT=[];
   el.classList.add("skip");insertSeatAt=performance.now()+200;setTimeout(()=>d(),200);return true}
 function unboxEnd(){unboxT.forEach(clearTimeout);unboxT=[];unboxDone=null;unboxFx(false);const el=$("inspect");if(!el.classList.contains("unboxing"))return;el.classList.remove("unboxing","dive","skip","streak","spot");
-  if(window.Inspect3D&&Inspect3D.cine)Inspect3D.cine(false);if(window.Inspect3D&&Inspect3D.launch)Inspect3D.launch(false);const m0=mode;mode="inspect";closeInspect();mode=m0==="inspect"?"browse":m0} // the case closes and flies back into its slot
+  if(window.Inspect3D&&Inspect3D.cine)Inspect3D.cine(false);if(window.Inspect3D&&Inspect3D.prepLaunch)Inspect3D.prepLaunch(false);if(window.Inspect3D&&Inspect3D.launch)Inspect3D.launch(false);const m0=mode;mode="inspect";closeInspect();mode=m0==="inspect"?"browse":m0} // the case closes and flies back into its slot
 function runInsert(s,g,done,hideAfter){
   if(!INSERT_3D){if(s.unbox3d===false){runSlide(s,g,done,hideAfter);return}if(!runUnbox3D(s,g,done))runUnbox(s,g,done,hideAfter);return}
   $("insert").classList.remove("slide");
