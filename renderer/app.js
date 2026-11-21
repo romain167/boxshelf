@@ -1611,9 +1611,9 @@ function play(){
   // covers the emulator starting (it stays until the game's window is up, then fades to black), and with the slide off
   // the built-in intro plays (runBoot without a video)
   if(vid){runBoot(s,()=>launchNow(g));return}
-  // (fork) a native port (Peanuts / Banana Native) is in front within a blink, so the insert animation plays to its end first
-  if(g.kind==="rom"&&s.insertAnim!==false&&g.nativeEmu){runInsert(s,g,()=>launchNow(g,true),false);return}
-  if(g.kind==="rom"&&s.insertAnim!==false){runInsert(s,g,null,false);launchNow(g,true);return}
+  // (fork) on the Thor most emulators are in front within a second and cut the insert animation short: it plays to its
+  // end first, then the game starts (every console)
+  if(g.kind==="rom"&&s.insertAnim!==false){runInsert(s,g,()=>launchNow(g,true),false);return}
   if(boot){runBoot(s,()=>launchNow(g));return}
   launchNow(g);
 }
