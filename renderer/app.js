@@ -2174,11 +2174,15 @@ function runUnbox3D(s,g,done){
   // timeline (ms at full length; "Short opening" in Settings plays it 1.6x faster). Any button skips straight to the game.
   const r=reduced(),spd=s.unboxShort?1.6:1,T=(ms,f)=>unboxT.push(setTimeout(f,r?Math.min(ms,200):ms/spd));unboxT.forEach(clearTimeout);unboxT=[];
   $("ispEndTitle").textContent=g.title;unboxDone=done;el.style.setProperty("--spd",spd);
+  tinyBlur((g.art&&(g.art.hero||g.art.front))||frontUrl(g),d=>{if(d)el.style.setProperty("--cover",`url("${d}")`);else el.style.removeProperty("--cover")}); // (the curtain opens on the game's own art)
+  el.classList.remove("streak","spot");
   lastGoAt=performance.now();play_("go");
   T(620,()=>{Inspect3D.cine&&Inspect3D.cine(true,spd)});                 // the camera starts its slow move, the light its sweep
   T(700,()=>{isp.state=0;ispAdvance()});                                  // the lid / flap opens
   T(1400,()=>{ispAdvance();Inspect3D.launch(true);rumble(.3,.2,70)});     // the media comes up off its hub / out of its slot
   T(2050,()=>{if(isp.state===2&&!el.classList.contains("cart"))play_("whir")});
+  T(2350,()=>{el.classList.add("streak")});                               // a light streak across as it turns
+  T(2900,()=>{el.classList.add("spot")});                                 // the stage light comes up for the face-on moment
   T(4500,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the light, the curtain opens on the game
   T(5750,()=>{unboxDone=null;if(done)done()});
   insertSeatAt=performance.now()+(r?250:5700/spd); // the emulator only starts once the screen has gone over to the game
@@ -2188,7 +2192,7 @@ function runUnbox3D(s,g,done){
 let unboxDone=null;
 function unboxSkip(){const el=$("inspect");if(!el.classList.contains("unboxing")||!unboxDone)return false;const d=unboxDone;unboxDone=null;unboxT.forEach(clearTimeout);unboxT=[];
   el.classList.add("skip");insertSeatAt=performance.now()+200;setTimeout(()=>d(),200);return true}
-function unboxEnd(){unboxT.forEach(clearTimeout);unboxT=[];unboxDone=null;unboxFx(false);const el=$("inspect");if(!el.classList.contains("unboxing"))return;el.classList.remove("unboxing","dive","skip");
+function unboxEnd(){unboxT.forEach(clearTimeout);unboxT=[];unboxDone=null;unboxFx(false);const el=$("inspect");if(!el.classList.contains("unboxing"))return;el.classList.remove("unboxing","dive","skip","streak","spot");
   if(window.Inspect3D&&Inspect3D.cine)Inspect3D.cine(false);if(window.Inspect3D&&Inspect3D.launch)Inspect3D.launch(false);const m0=mode;mode="inspect";closeInspect();mode=m0==="inspect"?"browse":m0} // the case closes and flies back into its slot
 function runInsert(s,g,done,hideAfter){
   if(!INSERT_3D){if(s.unbox3d===false){runSlide(s,g,done,hideAfter);return}if(!runUnbox3D(s,g,done))runUnbox(s,g,done,hideAfter);return}

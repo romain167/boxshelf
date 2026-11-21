@@ -242,3 +242,30 @@ body.reduce-motion .inspect.unboxing .isp-glow{animation:fadein .2s forwards}
 .inspect.unboxing .isp-launch{animation-duration:calc(.5s / var(--spd,1));animation-delay:calc(1.75s / var(--spd,1))}
 .inspect.unboxing .isp-glow{animation:unbGlowIn calc(.8s / var(--spd,1)) calc(1.35s / var(--spd,1)) cubic-bezier(.2,.7,.2,1) forwards,unbGlow 2.4s calc(2.15s / var(--spd,1)) ease-in-out infinite alternate}
 .inspect.unboxing .isp-lbar i{animation:unbLoad calc(3.3s / var(--spd,1)) calc(1.85s / var(--spd,1)) cubic-bezier(.4,0,.2,1) forwards}
+/* (fork) opening, v3 finish. A stage light behind the media while it faces you; a horizontal light streak (anamorphic
+   flare) as it turns over; the name in large type that settles as it appears; a faint film grain; the end curtain opens
+   on the game's own art. Opacity / transform only, so the Thor's GPU barely notices. */
+.isp-spot,.isp-streak,.isp-grain{position:absolute;pointer-events:none;display:none;opacity:0}
+.inspect.unboxing .isp-spot,.inspect.unboxing .isp-streak,.inspect.unboxing .isp-grain{display:block}
+.isp-spot{left:50%;top:49%;width:min(110vh,80vw);height:min(80vh,60vw);transform:translate(-50%,-50%);z-index:2;
+  background:radial-gradient(ellipse closest-side,rgba(255,255,255,.22),color-mix(in srgb,var(--accent,#9d8cff) 22%,transparent) 45%,transparent 100%);mix-blend-mode:screen}
+.inspect.unboxing.spot .isp-spot{animation:unbSpot calc(.7s / var(--spd,1)) ease-out forwards,unbSpotB 3s calc(.7s / var(--spd,1)) ease-in-out infinite alternate}
+@keyframes unbSpot{from{opacity:0;transform:translate(-50%,-50%) scale(.7)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes unbSpotB{from{opacity:1}to{opacity:.75}}
+.isp-streak{left:0;right:0;top:calc(47% - 2px);height:4px;z-index:4;mix-blend-mode:screen;
+  background:radial-gradient(ellipse 50% 50% at 50% 50%,#fff 0,color-mix(in srgb,var(--accent,#9d8cff) 70%,#fff) 25%,transparent 70%);filter:blur(1px)}
+.isp-streak::after{content:"";position:absolute;left:50%;top:50%;width:22vh;height:22vh;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.55),transparent 60%)}
+.inspect.unboxing.streak .isp-streak{animation:unbStreak calc(.75s / var(--spd,1)) ease-out forwards}
+@keyframes unbStreak{0%{opacity:0;transform:scaleX(.2) scaleY(.6)}25%{opacity:1;transform:scaleX(1) scaleY(1.6)}100%{opacity:0;transform:scaleX(1.3) scaleY(.4)}}
+.isp-grain{inset:0;z-index:5;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E")}
+.inspect.unboxing .isp-grain{animation:unbGrain .8s .3s forwards}
+@keyframes unbGrain{to{opacity:.16}}
+/* the name: large, settling from wide letter-spacing, an accent line drawing in under it */
+.inspect.unboxing .isp-launch{bottom:7vh}
+.inspect.unboxing .isp-launch .l-emu{font-size:12px;letter-spacing:.34em;opacity:.8}
+.inspect.unboxing .isp-launch .l-title{font-size:clamp(26px,3.6vw,46px);font-weight:800;letter-spacing:.01em;margin-top:8px;text-shadow:0 2px 18px rgba(0,0,0,.6),0 0 34px color-mix(in srgb,var(--accent,#9d8cff) 55%,transparent);
+  animation:unbName calc(.9s / var(--spd,1)) calc(1.75s / var(--spd,1)) cubic-bezier(.2,.8,.2,1) both}
+@keyframes unbName{from{letter-spacing:.24em;opacity:0;filter:blur(6px)}to{letter-spacing:.01em;opacity:1;filter:blur(0)}}
+/* the end: the curtain opens on the game's art, tinted by its colour */
+.isp-curtain{background:linear-gradient(0deg,color-mix(in srgb,var(--accent,#9d8cff) 55%,rgba(5,6,12,.55)),color-mix(in srgb,var(--accent,#9d8cff) 30%,rgba(5,6,12,.2))),var(--cover,none) center/cover,radial-gradient(ellipse 80% 70% at 50% 50%,var(--accent,#9d8cff),#05060c)}
+.inspect.unboxing.dive .isp-spot,.inspect.unboxing.dive .isp-streak{animation:unbOut .3s forwards}
