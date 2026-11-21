@@ -1611,6 +1611,8 @@ function play(){
   // covers the emulator starting (it stays until the game's window is up, then fades to black), and with the slide off
   // the built-in intro plays (runBoot without a video)
   if(vid){runBoot(s,()=>launchNow(g));return}
+  // (fork) a native port (Peanuts / Banana Native) is in front within a blink, so the insert animation plays to its end first
+  if(g.kind==="rom"&&s.insertAnim!==false&&g.nativeEmu){runInsert(s,g,()=>launchNow(g,true),false);return}
   if(g.kind==="rom"&&s.insertAnim!==false){runInsert(s,g,null,false);launchNow(g,true);return}
   if(boot){runBoot(s,()=>launchNow(g));return}
   launchNow(g);
@@ -2123,7 +2125,7 @@ function runInsert(s,g,done,hideAfter){
   const slot=m.drive==="slot"&&!drive&&!useModel;el.classList.toggle("slotload",slot);
   // the other consoles' devices (front slot, tray, handheld hatch): original generic shapes tinted from the shelf
   const deck=!drive&&!useModel?DECK[m.drive]||null:null;Object.values(DECK).forEach(c=>el.classList.toggle(c,c===deck));
-  $("insEmu").textContent=`Starting ${s.emulatorName}`;$("insTitle").textContent=g.title;
+  $("insEmu").textContent=`Starting ${({peanuts:"Peanuts Native",banana:"Banana Native"})[g.nativeEmu]||s.emulatorName}`;$("insTitle").textContent=g.title;
   el.classList.add("on");el.setAttribute("aria-hidden","false");
   if(top){
     // tint the cube from the shelf's colours and measure where the well lands on screen so the disc flies exactly into it
