@@ -837,6 +837,7 @@ let spineMat = null, standInSpine = null;
     }
     const kl = 1 - Math.exp(-dt * 4.2), ko = 1 - Math.exp(-dt * 4);
     if (leaving) { const k = easeIO(st.in); st.lid = st.lid0 * k; st.out = st.out0 * k; } // shut on the way back: it lands closed, like the box on the shelf
+    else if (st.cine0 && st.lidAt) { st.lid = st.lidT ? Math.min(1, (now - st.lidAt) / 820 * (st.spd || 1)) : st.lid; st.out = sm(st.out, st.outT, ko); } // (fork, launch: the lid on a clock, eased in and out by anim(): no sudden start)
     else { st.lid = sm(st.lid, st.lidT, kl); st.out = sm(st.out, st.outT, ko); }
     st.bump *= Math.exp(-dt * 9);
     // (beta.14) the case opens its own way (a lid on its hinge; a card box's flap, then its tray sliding out); what that
@@ -889,11 +890,11 @@ let spineMat = null, standInSpine = null;
         media.position.y += .035 * ew + Math.sin(tt * 1.3) * .012 * ew; media.position.x += Math.sin(tt * .85 + .4) * .01 * ew;
         const bm = media.userData.blurMat; if (bm) bm.opacity = 0; // (no smear at this speed)
       } else if (!reduce) {
-        const turn = easeIO(Math.min(1, tt / 1.3)) * Math.PI * 2, sway = Math.max(0, Math.min(1, (tt - 1.1) / .8));
+        const turn = easeIO(Math.min(1, tt / 1.3)) * Math.PI * 2, sway = easeIO(Math.max(0, Math.min(1, (tt - 1.0) / 1.0)));
         media.rotation.y += turn + Math.sin(tt * 1.15) * .12 * sway; media.rotation.x += -.12 * ew + Math.sin(tt * 1.4 + 1) * .07 * sway;
-        media.position.y += Math.sin(tt * 1.7) * .03 * sway;
+        media.position.y += Math.sin(tt * 1.7) * .03 * sway + .07 * ew; // (held a little higher: clear of the name under it)
       }
-      const lk = 1 + (cur.kind === 'cart' ? (media.userData.hand > 1 ? .5 : .12) : .5) * o; media.scale.multiplyScalar(lk); // (a small card is held up bigger already; a big cartridge barely)
+      const lk = 1 + (cur.kind === 'cart' ? (media.userData.hand > 1 ? .36 : .1) : .5) * o; media.scale.multiplyScalar(lk); // (a small card is held up bigger already; a big cartridge barely)
       if (st.dive0) { const d = easeIO(Math.min(1, (now - st.dive0) / 700)); media.position.z -= d * .9; media.scale.multiplyScalar(1 - .35 * d); } // (drifts back into the light)
     } else if (media.userData.blurMat) media.userData.blurMat.opacity = 0;
     const perPx = (2 * 3.9 * Math.tan(camera.fov * DEG / 2)) / innerHeight;
@@ -924,7 +925,7 @@ let spineMat = null, standInSpine = null;
   function cineFrame(now) {
     const t = (now - st.cine0) / 1000 * (st.spd || 1), E = easeIO, c01 = v => Math.max(0, Math.min(1, v));
     const reduce = document.body.classList.contains('reduce-motion');
-    if (!reduce) { const a = Math.sin(t * .42) * .09, z = 3.9 - .42 * E(c01(t / 3.6)); camera.position.set(Math.sin(a) * z, .06 * Math.sin(t * .5), Math.cos(a) * z); camera.lookAt(0, 0, 0); }
+    if (!reduce) { const w = E(c01(t / 1.4)), a = (1 - Math.cos(t * .42)) * .11 * w - .02 * w, z = 3.9 - .42 * E(c01(t / 3.6)); camera.position.set(Math.sin(a) * z, .05 * (1 - Math.cos(t * .5)) * w, Math.cos(a) * z); camera.lookAt(0, 0, 0); } // (starts from rest: no jolt on the first frame)
     if (lights) { lights.key.position.set(2.6 - 4.2 * E(c01((t - .1) / 1.4)), 3, 4); const ft = Math.max(0, ((now - (st.l0 || now)) / 1000 * (st.spd || 1)) - .55);
       lights.rim.intensity = .55 + (st.launch && cur && cur.kind !== 'cart' ? 1.3 * Math.sin(Math.PI * c01(ft / 1.15)) : 0); }
     if (shadow && media) { const on = st.launch ? E(c01((((now - (st.l0 || now)) / 1000) * (st.spd || 1) - .4) / .6)) : 0; shadow.visible = on > .01;
@@ -1023,7 +1024,7 @@ let spineMat = null, standInSpine = null;
   let lastMove = 0;
   // flip: the disc turned over (degrees, eased by the caller); base: the turn (ry) it had when it came out of the case
   function setPose(rx, ry, zoom, px, py, busy, flip, base) { if (busy) lastMove = performance.now(); st.rx = rx; st.ry = ry; st.zoom = zoom; st.px = px; st.py = py; st.flip = flip || 0; st.own = base != null; st.base = base || 0; } // (base null: Windows, the disc turns with the case as before)
-  function setState(n) { st.state = n; applyState(false); }
+  function setState(n) { if ((n >= 1) !== (st.state >= 1)) st.lidAt = performance.now(); st.state = n; applyState(false); }
   function dive() { if (st.launch) st.dive0 = performance.now(); }
   function launch(on) { st.launch = !!on; st.lv = 0; st.ls = 0; st.tq = 0; st.tqv = 0; st.dive0 = 0; st.l0 = performance.now(); if (on && active && !raf && renderer) { paused = false; lastT = 0; raf = requestAnimationFrame(frame); } }
   function bump() { st.bump = .12; }
