@@ -202,7 +202,6 @@ body.reduce-motion .rd-book{transition:none}
 .inspect.unboxing .isp-launch{animation:fadein .5s 1.75s forwards}
 .inspect.unboxing .isp-lbar i{animation:unbLoad 1.55s 1.85s cubic-bezier(.4,0,.2,1) forwards}
 .isp-flash{inset:0;z-index:5;background:radial-gradient(circle at 50% 47%,#fff 0,color-mix(in srgb,var(--accent,#9d8cff) 70%,#fff) 25%,var(--accent,#9d8cff) 55%,#000 100%)}
-.inspect.unboxing.dive .isp-flash{animation:unbFlash .55s .12s cubic-bezier(.5,0,.6,1) forwards}
 .inspect.unboxing.dive .isp-launch{opacity:1;animation:unbOut .3s forwards}
 @keyframes unbLoad{to{width:100%}}
 @keyframes unbGlowIn{from{opacity:0;transform:scale(.4)}to{opacity:.55;transform:scale(1)}}
@@ -210,3 +209,36 @@ body.reduce-motion .rd-book{transition:none}
 @keyframes unbFlash{0%{opacity:0}70%{opacity:1}100%{opacity:1;filter:brightness(.15)}}
 @keyframes unbOut{to{opacity:0;transform:translateY(12px)}}
 body.reduce-motion .inspect.unboxing .isp-glow{animation:fadein .2s forwards}
+
+/* (fork) the opening, v2. All timings divide by --spd (Settings: Short opening). Background: the game's art drifting slowly
+   (only transforms move: cheap on the Thor). Exit: the media drifts back into a bloom of light, the light parts like a
+   curtain on the game's colour with its name, then black as the game takes the screen. A button skips: straight to black. */
+.inspect.unboxing .ins-bg img{animation:unbBgDrift calc(7s / var(--spd,1)) linear forwards;will-change:transform}
+@keyframes unbBgDrift{from{transform:scale(1.14) translate(-1.2%,.6%)}to{transform:scale(1.04) translate(1.2%,-.6%)}}
+.inspect.unboxing.dive .isp-flash{background:radial-gradient(circle closest-side at 50% 47%,#fff 0,#fff 35%,color-mix(in srgb,var(--accent,#9d8cff) 40%,#fff) 65%,rgba(255,255,255,0) 100%);
+  animation:unbBloom calc(.5s / var(--spd,1)) cubic-bezier(.55,0,.7,.4) forwards} /* (soft round edge: no box ever shows while it grows) */
+@keyframes unbBloom{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:scale(3.2)}}
+.isp-curtain,.isp-endtitle{position:absolute;inset:0;pointer-events:none;display:none;z-index:6}
+.inspect.unboxing .isp-curtain,.inspect.unboxing .isp-endtitle{display:block;opacity:0}
+.isp-curtain{background:radial-gradient(ellipse 80% 70% at 50% 50%,var(--accent,#9d8cff),color-mix(in srgb,var(--accent,#9d8cff) 35%,#05060c) 100%);overflow:hidden}
+.isp-curtain i{position:absolute;top:0;bottom:0;width:50.5%;background:linear-gradient(90deg,#fff,color-mix(in srgb,var(--accent,#9d8cff) 25%,#fff));will-change:transform}
+.isp-curtain i:first-child{left:0}.isp-curtain i:last-child{right:0;transform:scaleX(-1)}
+.inspect.unboxing.dive .isp-curtain{animation:unbShow 0s calc(.45s / var(--spd,1)) forwards,unbDark calc(.25s / var(--spd,1)) calc(1s / var(--spd,1)) ease-in forwards}
+.inspect.unboxing.dive .isp-curtain i:first-child{animation:unbOpenL calc(.5s / var(--spd,1)) calc(.45s / var(--spd,1)) cubic-bezier(.6,0,.25,1) forwards}
+.inspect.unboxing.dive .isp-curtain i:last-child{animation:unbOpenR calc(.5s / var(--spd,1)) calc(.45s / var(--spd,1)) cubic-bezier(.6,0,.25,1) forwards}
+@keyframes unbShow{to{opacity:1}}
+@keyframes unbOpenL{to{transform:translateX(-101%)}}
+@keyframes unbOpenR{to{transform:scaleX(-1) translateX(-101%)}}
+@keyframes unbDark{from{opacity:1;filter:brightness(1)}to{opacity:1;filter:brightness(0)}}
+.isp-endtitle{display:none;align-items:center;justify-content:center;text-align:center;padding:0 8vw;font:800 clamp(28px,5.2vw,72px)/1.1 system-ui,Segoe UI,sans-serif;color:#fff;letter-spacing:.01em;text-shadow:0 4px 30px rgba(0,0,0,.45)}
+.inspect.unboxing .isp-endtitle{display:flex}
+.inspect.unboxing.dive .isp-endtitle{animation:unbTitle calc(.3s / var(--spd,1)) calc(.6s / var(--spd,1)) ease-out forwards,unbOut calc(.25s / var(--spd,1)) calc(1s / var(--spd,1)) ease-in forwards}
+@keyframes unbTitle{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+.inspect.unboxing.dive .isp-glow,.inspect.unboxing.dive .isp-fx{animation:unbOut .35s forwards}
+.inspect.unboxing.skip .isp-flash{display:block;background:#000;animation:unbBlack .18s forwards!important}
+.inspect.unboxing.skip .isp-curtain,.inspect.unboxing.skip .isp-endtitle{display:none}
+@keyframes unbBlack{from{opacity:0}to{opacity:1}}
+/* the opening's other timings, at the chosen speed */
+.inspect.unboxing .isp-launch{animation-duration:calc(.5s / var(--spd,1));animation-delay:calc(1.75s / var(--spd,1))}
+.inspect.unboxing .isp-glow{animation:unbGlowIn calc(.8s / var(--spd,1)) calc(1.35s / var(--spd,1)) cubic-bezier(.2,.7,.2,1) forwards,unbGlow 2.4s calc(2.15s / var(--spd,1)) ease-in-out infinite alternate}
+.inspect.unboxing .isp-lbar i{animation:unbLoad calc(2.2s / var(--spd,1)) calc(1.85s / var(--spd,1)) cubic-bezier(.4,0,.2,1) forwards}

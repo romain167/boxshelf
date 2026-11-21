@@ -2140,15 +2140,25 @@ function coverAccent(g,cb){const k=g.id||g.title,have=launchDb.get(k);if(have&&h
   tinyBlur((g.art&&g.art.front)||frontUrl(g),d=>{if(!d)return cb(null);const im=new Image();im.onload=()=>{try{const c=document.createElement("canvas");c.width=18;c.height=24;const x=c.getContext("2d",{willReadFrequently:true});x.drawImage(im,0,0,18,24);const px=x.getImageData(0,0,18,24).data;
     let best=null,bs=-1;for(let i=0;i<px.length;i+=4){const r=px[i],gg=px[i+1],b=px[i+2],mx=Math.max(r,gg,b),mn=Math.min(r,gg,b),sat=mx?(mx-mn)/mx:0,sc=sat*1.4+mx/255*.6-(mx<60?1:0);if(sc>bs){bs=sc;best=[r,gg,b]}}
     if(!best)return cb(null);const mx=Math.max(...best)||1,f=Math.min(1.6,230/mx),hex="#"+best.map(v=>Math.min(255,Math.round(v*f)).toString(16).padStart(2,"0")).join("");launchDb.set(k,{accent:hex});cb(hex)}catch{cb(null)}};im.onerror=()=>cb(null);im.src=d})}
-// light motes drifting out from the media in the game's colour (a small 2D canvas, only while a game starts)
+// particles in the game's colour, in a style that follows it: warm covers get embers rising, greens leaves drifting down,
+// blues bubbles, yellows / purples / pinks twinkling sparkles, greys plain light motes (a small 2D canvas, only while a game starts)
 function unboxFx(on,col){const cv=$("ispFx");cancelAnimationFrame(unboxFxRaf);unboxFxRaf=0;if(!cv)return;const x=cv.getContext("2d");if(!on||reduced()){x.clearRect(0,0,cv.width,cv.height);return}
-  const W=cv.width=Math.round(innerWidth/2),H=cv.height=Math.round(innerHeight/2),P=[];const rgb=(col||"#9d8cff").replace("#","").match(/../g).map(h=>Math.round(parseInt(h,16)*.65+255*.35));
-  const spawn=t=>{const a=Math.random()*Math.PI*2,r=H*(.12+Math.random()*.1);P.push({x:W/2+Math.cos(a)*r,y:H*.47+Math.sin(a)*r*.8,vx:Math.cos(a)*(8+Math.random()*22),vy:Math.sin(a)*(6+Math.random()*16)-6,s:.35+Math.random()*.9,b:t,l:2.2+Math.random()*2})};
+  const W=cv.width=Math.round(innerWidth/2),H=cv.height=Math.round(innerHeight/2),P=[];const raw=(col||"#9d8cff").replace("#","").match(/../g).map(h=>parseInt(h,16));
+  const [r0,g0,b0]=raw.map(v=>v/255),mx=Math.max(r0,g0,b0),mn=Math.min(r0,g0,b0),sat=mx?(mx-mn)/mx:0;let hue=0;if(mx!==mn){hue=mx===r0?((g0-b0)/(mx-mn))%6:mx===g0?(b0-r0)/(mx-mn)+2:(r0-g0)/(mx-mn)+4;hue=(hue*60+360)%360}
+  const kind=sat<.25?"mote":hue<40||hue>=340?"ember":hue<70?"spark":hue<170?"leaf":hue<250?"bubble":"spark";
+  const rgb=raw.map(v=>Math.round(v*.7+255*.3)),rgba=a=>`rgba(${rgb},${a})`;
+  const spawn=()=>{const a=Math.random()*Math.PI*2,R=H*(.14+Math.random()*.12),p={x:W/2+Math.cos(a)*R,y:H*.47+Math.sin(a)*R*.8,b:performance.now(),l:2+Math.random()*2.2,s:.35+Math.random()*.9,r:Math.random()*6.3,vr:(Math.random()-.5)*2};
+    if(kind==="ember"){p.vx=(Math.random()-.5)*10;p.vy=-(14+Math.random()*22)}else if(kind==="leaf"){p.x=Math.random()*W;p.y=-10;p.vx=8+Math.random()*14;p.vy=10+Math.random()*14;p.s*=1.6}
+    else if(kind==="bubble"){p.y=H*(.6+Math.random()*.4);p.x=W*(.2+Math.random()*.6);p.vx=0;p.vy=-(10+Math.random()*16);p.s*=1.5}else{p.vx=Math.cos(a)*(6+Math.random()*16);p.vy=Math.sin(a)*(5+Math.random()*12)-5}P.push(p)};
   let lt=performance.now(),boost=0;cv._boost=()=>{boost=1};
-  const step=t=>{const dt=Math.min(.05,(t-lt)/1000);lt=t;x.clearRect(0,0,W,H);x.globalCompositeOperation="lighter";
-    const n=boost?5:(Math.random()<.8?1:0);for(let k=0;k<n;k++)if(P.length<90)spawn(t);
-    for(let i=P.length-1;i>=0;i--){const p=P[i],age=(t-p.b)/1000;if(age>p.l){P.splice(i,1);continue}const sp=1+boost*5;p.x+=p.vx*dt*sp;p.y+=p.vy*dt*sp;const al=Math.sin(Math.PI*age/p.l)*.7,rad=p.s*(1+boost*1.2);
-      const gr=x.createRadialGradient(p.x,p.y,0,p.x,p.y,rad*3);gr.addColorStop(0,`rgba(${rgb},${al})`);gr.addColorStop(1,`rgba(${rgb},0)`);x.fillStyle=gr;x.fillRect(p.x-rad*3,p.y-rad*3,rad*6,rad*6)}
+  const step=t=>{const dt=Math.min(.05,(t-lt)/1000);lt=t;x.clearRect(0,0,W,H);x.globalCompositeOperation=kind==="leaf"?"source-over":"lighter";
+    const n=boost?4:(Math.random()<(kind==="leaf"?.25:.7)?1:0);for(let k=0;k<n;k++)if(P.length<(kind==="leaf"?40:90))spawn();
+    for(let i=P.length-1;i>=0;i--){const p=P[i],age=(t-p.b)/1000;if(age>p.l||p.y>H+20){P.splice(i,1);continue}const sp=1+boost*4;
+      p.x+=(p.vx+(kind==="bubble"?Math.sin(age*3+p.r)*8:kind==="leaf"?Math.sin(age*2+p.r)*12:0))*dt*sp;p.y+=p.vy*dt*sp;p.r+=p.vr*dt;const al=Math.sin(Math.PI*age/p.l)*.75,rad=p.s*(1+boost);
+      if(kind==="leaf"){x.save();x.translate(p.x,p.y);x.rotate(p.r);x.fillStyle=rgba(al*.8);x.beginPath();x.ellipse(0,0,rad*3.2,rad*1.3,0,0,Math.PI*2);x.fill();x.strokeStyle=`rgba(0,0,0,${al*.25})`;x.lineWidth=.5;x.beginPath();x.moveTo(-rad*3,0);x.lineTo(rad*3,0);x.stroke();x.restore()}
+      else if(kind==="bubble"){x.strokeStyle=rgba(al*.8);x.lineWidth=.8;x.beginPath();x.arc(p.x,p.y,rad*2.4,0,Math.PI*2);x.stroke();x.fillStyle=`rgba(255,255,255,${al*.5})`;x.beginPath();x.arc(p.x-rad*.8,p.y-rad*.8,rad*.5,0,Math.PI*2);x.fill()}
+      else if(kind==="spark"){const tw=.5+.5*Math.sin(age*9+p.r*3),L=rad*4*tw;x.strokeStyle=rgba(al*tw);x.lineWidth=.8;x.beginPath();x.moveTo(p.x-L,p.y);x.lineTo(p.x+L,p.y);x.moveTo(p.x,p.y-L);x.lineTo(p.x,p.y+L);x.stroke();x.fillStyle=`rgba(255,255,255,${al*tw})`;x.beginPath();x.arc(p.x,p.y,rad*.6,0,Math.PI*2);x.fill()}
+      else{const fl=kind==="ember"?.6+.4*Math.sin(age*14+p.r*5):1,gr=x.createRadialGradient(p.x,p.y,0,p.x,p.y,rad*3);gr.addColorStop(0,kind==="ember"?`rgba(255,${180+Math.round(60*fl)},120,${al*fl})`:rgba(al));gr.addColorStop(1,rgba(0));x.fillStyle=gr;x.fillRect(p.x-rad*3,p.y-rad*3,rad*6,rad*6)}}
     unboxFxRaf=requestAnimationFrame(step)};unboxFxRaf=requestAnimationFrame(step)}
 // (fork) the launch, through the shelf's own 3D case (Inspect): the box comes off the shelf, opens the way that console's case
 // opens, the disc / cartridge comes out (the case slides away) and spins up / turns in the game's own light, under its name;
@@ -2161,18 +2171,25 @@ function runUnbox3D(s,g,done){
   const L=$("ispLaunch");L.querySelector(".l-emu").textContent=`Starting ${nativeName(g)||s.emulatorName||""}`.trim();L.querySelector(".l-title").textContent=g.title;
   const bar=L.querySelector(".isp-lbar i");bar.style.animation="none";void bar.offsetWidth;bar.style.animation="";
   coverAccent(g,c=>{if(c&&el.classList.contains("unboxing"))el.style.setProperty("--accent",c);unboxFx(el.classList.contains("unboxing"),c||(STYLE[s.id]||{}).glow)});
-  const r=reduced(),T=(ms,f)=>unboxT.push(setTimeout(f,r?Math.min(ms,200):ms));unboxT.forEach(clearTimeout);unboxT=[];
+  // timeline (ms at full length; "Short opening" in Settings plays it 1.6x faster). Any button skips straight to the game.
+  const r=reduced(),spd=s.unboxShort?1.6:1,T=(ms,f)=>unboxT.push(setTimeout(f,r?Math.min(ms,200):ms/spd));unboxT.forEach(clearTimeout);unboxT=[];
+  $("ispEndTitle").textContent=g.title;unboxDone=done;el.style.setProperty("--spd",spd);
   lastGoAt=performance.now();play_("go");
-  T(720,()=>{isp.state=0;ispAdvance()});                                  // the lid / flap opens
-  T(1480,()=>{ispAdvance();Inspect3D.launch(true);rumble(.3,.2,70)});     // out comes the media, the case slides away
+  T(620,()=>{Inspect3D.cine&&Inspect3D.cine(true,spd)});                 // the camera starts its slow move, the light its sweep
+  T(700,()=>{isp.state=0;ispAdvance()});                                  // the lid / flap opens
+  T(1400,()=>{ispAdvance();Inspect3D.launch(true);rumble(.3,.2,70)});     // the media comes up off its hub / out of its slot
   T(2050,()=>{if(isp.state===2&&!el.classList.contains("cart"))play_("whir")});
-  T(3000,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the game
-  T(3350,()=>{if(done)done()});
-  insertSeatAt=performance.now()+(r?250:3300); // the emulator only starts once the screen has washed over
+  T(3400,()=>{Inspect3D.dive&&Inspect3D.dive();el.classList.add("dive");const cv=$("ispFx");cv&&cv._boost&&cv._boost();play_("open");rumble(.45,.3,120)}); // into the light, the curtain opens on the game
+  T(4650,()=>{unboxDone=null;if(done)done()});
+  insertSeatAt=performance.now()+(r?250:4600/spd); // the emulator only starts once the screen has gone over to the game
   return true;
 }
-function unboxEnd(){unboxT.forEach(clearTimeout);unboxT=[];unboxFx(false);const el=$("inspect");if(!el.classList.contains("unboxing"))return;el.classList.remove("unboxing","dive");
-  if(window.Inspect3D&&Inspect3D.launch)Inspect3D.launch(false);const m0=mode;mode="inspect";closeInspect();mode=m0==="inspect"?"browse":m0} // the case closes and flies back into its slot
+// (fork) a button during the opening: straight to the game (a quick fade to black, then it starts)
+let unboxDone=null;
+function unboxSkip(){const el=$("inspect");if(!el.classList.contains("unboxing")||!unboxDone)return false;const d=unboxDone;unboxDone=null;unboxT.forEach(clearTimeout);unboxT=[];
+  el.classList.add("skip");insertSeatAt=performance.now()+200;setTimeout(()=>d(),200);return true}
+function unboxEnd(){unboxT.forEach(clearTimeout);unboxT=[];unboxDone=null;unboxFx(false);const el=$("inspect");if(!el.classList.contains("unboxing"))return;el.classList.remove("unboxing","dive","skip");
+  if(window.Inspect3D&&Inspect3D.cine)Inspect3D.cine(false);if(window.Inspect3D&&Inspect3D.launch)Inspect3D.launch(false);const m0=mode;mode="inspect";closeInspect();mode=m0==="inspect"?"browse":m0} // the case closes and flies back into its slot
 function runInsert(s,g,done,hideAfter){
   if(!INSERT_3D){if(s.unbox3d===false){runSlide(s,g,done,hideAfter);return}if(!runUnbox3D(s,g,done))runUnbox(s,g,done,hideAfter);return}
   $("insert").classList.remove("slide");
@@ -2385,7 +2402,7 @@ api.onExited(async info=>{uiCrumb("Back from the game");if(info&&info.watched)st
   app.classList.remove("returning");returnPrep=false;sfx.back();
   setTimeout(()=>{if(!app.classList.contains("launching"))$("launch").style.background=""},700);
 });
-function back(){
+function back(){if(mode==="launch"&&unboxSkip())return;
   if(mode==="sort"){closeSort();return}
   if(mode==="build"){bpDone("");return}
   if(mode==="cover"){cpDone();sfx.back();return}
@@ -2398,7 +2415,7 @@ function back(){
   if(mode==="details"){if(!$("dMenu").hidden){dMenuClose();return}closeDetails();return} // (beta.7: B closes the More menu first)
   if(flipped)flip();else if((mode==="browse"||mode==="details")&&(Math.abs(spin)>1||Math.abs(spinT)>1)){spinT=0;spinEase();sfx.flip()} // resting on a spine: B turns it to the front too
 }
-function primary(){if(mode==="boot"){endBoot();return}if(mode==="browse"||mode==="details")play()}
+function primary(){if(mode==="launch"&&unboxSkip())return;if(mode==="boot"){endBoot();return}if(mode==="browse"||mode==="details")play()}
 
 /* ---------- boot animation ---------- */
 let bootDone=null,bootT,bootRun=0; // bootRun: tags each boot so callbacks from a cancelled one (pending play(), muted retry, error) do nothing

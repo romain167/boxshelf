@@ -696,6 +696,7 @@ function consoleSection(b,def){
   b.append(card("When you press Play","",toggle("Boot screen with the game's cover",c.insertAnim!==false,v=>{c.insertAnim=v},"ins-"+def.id),
     el("div",{class:"hint-text",text:"The console's start-up look with the game's cover and a progress line while the emulator opens."}),
     toggle("3D opening (case, disc, cartridge)",c.unbox3d!==false,v=>{c.unbox3d=v},"unbox-"+def.id),
+    toggle("Short opening",c.unboxShort===true,v=>{c.unboxShort=v},"unboxs-"+def.id),
     toggle("Your boot video before games",c.bootOnLaunch!==false,v=>{c.bootOnLaunch=v},"boot-"+def.id),
     el("div",{class:"hint-text",text:"Plays the boot video you added for this console (Customize) instead of the boot screen. Without a video, the built-in intro plays only when the boot screen is off."})));
   if(def.id==="gc"&&api.findIpl&&(!window.bsPlatform||bsPlatform.has("dolphinIpl"))){ /* (beta.10) Windows only: Android has no findIpl (stuck on "Checking…"), Linux's Dolphin folders differ */

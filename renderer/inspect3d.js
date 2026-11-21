@@ -32,7 +32,7 @@ let spineMat = null, standInSpine = null;
     const pm = new THREE.PMREMGenerator(renderer); env = pm.fromScene(new window.BS3D.RoomEnvironment(), .04).texture; pm.dispose(); scene.environment = env; scene.environmentIntensity = .45;
     camera = new THREE.PerspectiveCamera(30, 1, .2, 12); /* a tight depth range: more depth precision for the case's thin walls */ camera.position.set(0, 0, 3.9); camera.lookAt(0, 0, 0);
     const key = new THREE.DirectionalLight(0xffffff, 1.55); key.position.set(2, 3, 4); scene.add(key);
-    const rim = new THREE.DirectionalLight(0xb9c6ff, .55); rim.position.set(-3, 1, -2); scene.add(rim);
+    const rim = new THREE.DirectionalLight(0xb9c6ff, .55); rim.position.set(-3, 1, -2); scene.add(rim); lights = { key, rim };
     const fill = new THREE.DirectionalLight(0xfff3ea, .6); fill.position.set(-2, -1, 3); scene.add(fill);
     rot = new THREE.Group(); scene.add(rot);
     caseG = new THREE.Group(); rot.add(caseG);
@@ -42,13 +42,13 @@ let spineMat = null, standInSpine = null;
     canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lost = true; });
     return true;
   }
-  let lost = false;
+  let lost = false, lights = null;
   function teardown() {
     try { cancelAnimationFrame(raf); raf = 0; if (renderer) { renderer.dispose(); renderer.forceContextLoss && renderer.forceContextLoss(); } } catch {}
     try { canvas && canvas.remove(); } catch {}
     tex.forEach(t => { try { t.dispose(); } catch {} }); tex = new Map(); mediaSeq++;
     genTex.forEach(t => { try { t.dispose(); } catch {} }); genTex.clear();
-    renderer = scene = camera = canvas = env = rot = caseG = lidPivot = media = mediaG = manualPlane = null; built = null; pauseAt = 0; cur = null; customMedia = null; customUrl = null; lost = false;
+    renderer = scene = camera = canvas = env = rot = caseG = lidPivot = media = mediaG = manualPlane = null; shadow = null; lights = null; st.cine0 = 0; built = null; pauseAt = 0; cur = null; customMedia = null; customUrl = null; lost = false;
     coverMat = null; if (standInTex) { try { standInTex.dispose(); } catch {} standInTex = null; } spineMat = null; if (standInSpine) { try { standInSpine.dispose(); } catch {} standInSpine = null; } phase = 'idle'; pend = null; fadeT0 = 0; target = null; tok++;
     const cb = onDone; onDone = null; if (cb) try { cb(true); } catch {} // a box still hidden for a flight that can't finish now comes back
   }
@@ -843,10 +843,14 @@ let spineMat = null, standInSpine = null;
     // returns shifts the case (cx, cy: a card box moves over so box and tray stay in the middle) and the media riding the tray (mx, my)
     const an = built && built.anim ? built.anim(easeIO(st.lid)) : NOAN;
     if (built && built.slide) { st.man = sm(st.man || 0, leaving ? 0 : st.manT || 0, 1 - Math.exp(-dt * 9)); if (Math.abs(st.man - (leaving ? 0 : st.manT || 0)) < .002) st.man = leaving ? 0 : st.manT || 0; built.slide(easeIO(st.man)); }
-    const o = easeIO(st.out), mu = media.userData;
+    // (fork) launching: the media first comes straight up off its hub / out of its slot (lift), and only then does the case
+    // slide away behind it (o, on its own clock) and the media turn: nothing ever passes through anything
+    const L = st.launch, lt = L ? (now - (st.l0 || now)) / 1000 * (st.spd || 1) : 0;
+    const lift = L ? 1 - Math.pow(1 - Math.min(1, lt / .38), 3) : 0, press = L && cur.kind !== 'cart' ? Math.sin(Math.PI * Math.min(1, lt / .1)) * (lt < .1 ? 1 : 0) : 0;
+    const o = L ? easeIO(Math.max(0, Math.min(1, (lt - .3) / .8))) : easeIO(st.out), mu = media.userData;
     // disc out: the case slides away off-screen and the disc alone sits in your hands; "put back" brings the case in again
     caseG.position.set(-2.6 * o + an.cx, -.3 * o + an.cy, -.6 * o); caseG.rotation.y = 30 * DEG * o; caseG.visible = o < .995;
-    media.position.x = ((mu.x0 || 0) + an.mx + an.cx) * (1 - o); media.position.y = ((mu.y0 || 0) + an.my + an.cy) * (1 - o); media.position.z = mu.zIn * (1 - o) + .25 * o + st.bump;
+    media.position.x = ((mu.x0 || 0) + an.mx + an.cx) * (1 - o); media.position.y = ((mu.y0 || 0) + an.my + an.cy) * (1 - o); media.position.z = mu.zIn * (1 - o) + .25 * o + st.bump + (.24 * lift - .006 * press) * (1 - o);
     const ms = (mu.s0 || 1) * (1 + (mu.hand != null ? mu.hand : cur.kind === 'cart' ? .9 : .55) * o); media.scale.set(ms, ms, ms);
     media.rotation.set(0, 0, 0);
     // A disc (or UMD) out of its case spins about its own centre, like in a player, and only tilts gently; it doesn't swing round
@@ -869,7 +873,7 @@ let spineMat = null, standInSpine = null;
     // little on its hub. A cartridge makes one slow turn (its back and contacts show), then hovers and sways. Both come closer;
     // at the end (dive) the media rushes at the camera as the screen washes over to the game.
     if (st.launch && o > .01) {
-      const tt = (now - (st.l0 || now)) / 1000, w = Math.min(1, tt / .9), ew = easeIO(w);
+      const tt = Math.max(0, lt - .55), w = Math.min(1, tt / .9), ew = easeIO(w); // (the turn starts once it is clear of the case)
       if (cur.kind !== 'cart') {
         // (fork, less mechanical) taken off its hub it turns over once in your hand (its rainbow side catches the light), then
         // settles back on a spring to lie tipped like in a drive; the motor spins it up with a little unevenness, and it
@@ -889,8 +893,8 @@ let spineMat = null, standInSpine = null;
         media.rotation.y += turn + Math.sin(tt * 1.15) * .22 * sway; media.rotation.x += -.12 * ew + Math.sin(tt * 1.4 + 1) * .07 * sway;
         media.position.y += Math.sin(tt * 1.7) * .03 * sway;
       }
-      const lk = 1 + (cur.kind === 'cart' ? (media.userData.hand > 1 ? .5 : .12) : .5) * o; // (a small card is held up bigger already; a big cartridge barely) media.scale.multiplyScalar(lk);
-      if (st.dive0) { const d = easeIn3(Math.min(1, (now - st.dive0) / 520)); media.position.z += d * 2.6; media.position.y -= d * .05; }
+      const lk = 1 + (cur.kind === 'cart' ? (media.userData.hand > 1 ? .5 : .12) : .5) * o; media.scale.multiplyScalar(lk); // (a small card is held up bigger already; a big cartridge barely)
+      if (st.dive0) { const d = easeIO(Math.min(1, (now - st.dive0) / 700)); media.position.z -= d * .9; media.scale.multiplyScalar(1 - .35 * d); } // (drifts back into the light)
     } else if (media.userData.blurMat) media.userData.blurMat.opacity = 0;
     const perPx = (2 * 3.9 * Math.tan(camera.fov * DEG / 2)) / innerHeight;
     const e = easeIO(st.in);
@@ -911,7 +915,31 @@ let spineMat = null, standInSpine = null;
       const s = st.zoom * (leaving ? 1 + m * .35 : .8 + .2 * (1 - m)); rot.scale.set(s, s, s);
       rot.position.set(st.px * perPx, -st.py * perPx - m * .12, leaving ? -back : back);
     }
+    if (st.cine0) cineFrame(now);
     renderer.render(scene, camera);
+  }
+  // (fork) the launch's camera and light: from cine(true) the camera eases in a little and drifts on a slow arc round the
+  // case; the key light sweeps across while the lid opens (a glint gliding over the plastic); the rim light swells while a
+  // disc turns over so its rainbow side lights up. A soft shadow sits behind the media once it is out.
+  function cineFrame(now) {
+    const t = (now - st.cine0) / 1000 * (st.spd || 1), E = easeIO, c01 = v => Math.max(0, Math.min(1, v));
+    const reduce = document.body.classList.contains('reduce-motion');
+    if (!reduce) { const a = Math.sin(t * .42) * .09, z = 3.9 - .42 * E(c01(t / 3.6)); camera.position.set(Math.sin(a) * z, .06 * Math.sin(t * .5), Math.cos(a) * z); camera.lookAt(0, 0, 0); }
+    if (lights) { lights.key.position.set(2.6 - 4.2 * E(c01((t - .1) / 1.4)), 3, 4); const ft = Math.max(0, ((now - (st.l0 || now)) / 1000 * (st.spd || 1)) - .55);
+      lights.rim.intensity = .55 + (st.launch && cur && cur.kind !== 'cart' ? 1.3 * Math.sin(Math.PI * c01(ft / 1.15)) : 0); }
+    if (shadow && media) { const on = st.launch ? E(c01((((now - (st.l0 || now)) / 1000) * (st.spd || 1) - .4) / .6)) : 0; shadow.visible = on > .01;
+      if (shadow.visible) { media.updateMatrixWorld(true); const p = new (T().Vector3)().setFromMatrixPosition(media.matrixWorld), sc = new (T().Vector3)().setFromMatrixScale(media.matrixWorld);
+        const b = localBox(media), sz = Math.max(b.max.x - b.min.x, b.max.y - b.min.y) * sc.x; shadow.position.set(p.x + .04, p.y - sz * .08, p.z - .35); shadow.scale.set(sz * 1.5, sz * 1.5, 1); shadow.material.opacity = .55 * on * (st.dive0 ? 1 - Math.min(1, (now - st.dive0) / 400) : 1); } }
+  }
+  let shadow = null;
+  function makeShadow() { const THREE = T(), c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.45, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, opacity: 0 })); m.visible = false; m.renderOrder = -1; return m; }
+  // cine(true, speed): the launch's camera / light moves from now; cine(false): all back as they were
+  function cine(on, spd) {
+    st.cine0 = on ? performance.now() : 0; st.spd = spd || 1;
+    // (the soft shadow plane showed its square edge against the page behind the canvas: left out)
+    if (!on) { if (camera) { camera.position.set(0, 0, 3.9); camera.lookAt(0, 0, 0); } if (lights) { lights.key.position.set(2, 3, 4); lights.rim.intensity = .55; } if (shadow) shadow.visible = false; }
   }
   const easeIn3 = t => t * t * t;
   const easeIO = t => t <= 0 ? 0 : t >= 1 ? 1 : (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -1020,7 +1048,7 @@ let spineMat = null, standInSpine = null;
   addEventListener('resize', () => { if (renderer && active) resize(); });
   // the lid's manual, when it arrives late (Boxshelf's own booklet is drawn after the case opens)
   function setManual(url) { const m = built && built.manMat; if (!manualPlane || !m || !url || (cur && cur.manual)) return; const t = loadTex(url); m.map = t; m.color.set(0xffffff); m.needsUpdate = true; if (cur) cur.manual = url; fitManual(); }
-  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, launch, dive, bump, hitAt, setPaused, isActive: () => active,
+  return { setManual, kit: { discBackTexture, discLift, coverRect, fitCover, fitPage, coverCrop, caseSpec, manualDims, mediaDims, buildCase }, available, open, close, leave, setPose, setState, launch, dive, cine, bump, hitAt, setPaused, isActive: () => active,
     busy: () => !paused && (phase === 'out' || phase === 'fade' || phase === 'wait' || phase === 'in'), _st: () => ({ phase, in: st.in, ry: st.ry, rotY: rot ? Math.round(rot.rotation.y / DEG) : null, ready, fade: !!fadeT0, pend: !!pend, op: canvas && canvas.style.opacity, on: !!(canvas && canvas.classList.contains('on')), from: cur && cur.from, standIn: !!standInTex, tok, disc: discPose(), manual: manualXY(), spine: !!(spineM && spineM.parent && spineM.parent.parent), lid: st.lid, lidT: st.lidT, manSlide: st.man || 0, paused, cs: caseInfo }) }; // (beta.11 spine: the printed spine is on the case; beta.14 cs: the case built: its type, booklet, media size, meshes)
   // (test hook) where on the screen the middle of the lid's manual is, in page pixels (null when it isn't drawn)
   function manualXY() { if (!manualPlane || !camera || !canvas) return null; const THREE = T(); scene.updateMatrixWorld(true); const p = manualPlane.getWorldPosition(new THREE.Vector3()).project(camera), r = canvas.getBoundingClientRect();
